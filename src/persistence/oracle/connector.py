@@ -2,44 +2,48 @@
 # -*- coding: utf-8 -*-
 
 """
-Módulo de conexão com banco de dados Oracle para persistência de dados de
-monitoramento de colheita de cana-de-açúcar e emissões de GHG.
+Implementa conexão robusta com Oracle para persistência de dados agrícolas.
 
-Este módulo implementa um conector robusto para ambiente de produção,
-com suporte a connection pooling, tratamento de erros e segurança.
+Este módulo fornece a infraestrutura de conexão para o sistema de monitoramento
+de perdas na colheita de cana-de-açúcar, com foco em segurança, desempenho e
+resiliência para ambientes de produção.
 """
 
 import os
 import time
 import logging
-import cx_Oracle
-from contextlib import contextmanager
-from typing import Dict, List, Any, Optional, Union, Tuple, ContextManager
+from typing import Dict, Any, Optional, List, Union, Tuple
 from datetime import datetime
+from contextlib import contextmanager
+
+import cx_Oracle
 
 # Configuração de logging
 logger = logging.getLogger(__name__)
 
+
 class OracleConnector:
     """
-    Gerencia conexão e persistência com banco de dados Oracle.
+    Gerencia conexão e pool para banco de dados Oracle.
 
-    Esta classe utiliza connection pooling para eficiência e implementa
-    mecanismos de retry, timeout e tratamento de erros para ambiente
-    de produção.
+    Implementa práticas para ambiente de produção:
+    - Connection pooling para eficiência
+    - Mecanismos de retry com backoff exponencial
+    - Obtenção segura de credenciais
+    - Suporte a batching para operações em massa
+    - Modo simulado para desenvolvimento e testes
     """
 
     def __init__(self, config: Dict[str, Any]) -> None:
         """
-        Inicializa o conector Oracle com configurações específicas.
+        Inicializa conector com configurações específicas.
 
         Args:
-            config: Dicionário com configurações de conexão e comportamento.
-                   Deve conter as chaves:
-                   - connection: Configuração da conexão (host, port, etc.)
-                   - pool: Configuração do pool (min, max, increment)
-                   - security: Configurações de segurança
-                   - retry: Política de retentativas
+            config: Dicionário com configurações para conexão e comportamento.
+                   Deve conter as seguintes seções:
+                   - connection: Configurações de conexão
+                   - pool: Configurações do pool de conexões
+                   - retry: Políticas de retry
                    - timeout: Configurações de timeout
         """
         self.config = config or {}
@@ -59,8 +63,9 @@ class OracleConnector:
         self.min_connections = pool_config.get('min', 1)
         self.max_connections = pool_config.get('max', 5)
         self.increment = pool_config.get('increment', 1)
+        self.timeout = pool_config.get('timeout', 60)
 
-        # Políticas de retry e timeout
+        # Políticas de retry
         retry_config = self.config.get('retry', {})
         self.max_retries = retry_config.get('max_attempts', 3)
         self.retry_delay = retry_config.get('delay_seconds', 1)
@@ -73,36 +78,42 @@ class OracleConnector:
         self.pool = None
         self.initialized = False
 
-        # Esquemas de tabelas
+        # Define esquemas de tabelas
         self._initialize_schemas()
 
     def _validate_config(self) -> None:
         """
         Valida configuração fornecida.
 
-        Garante que as configurações necessárias estejam presentes e
-        com valores válidos.
+        Verifica presença de seções obrigatórias e valores válidos.
 
         Raises:
             ValueError: Se configuração inválida for detectada
         """
-        required_sections = ['connection']
-        for section in required_sections:
-            if section not in self.config:
-                raise ValueError(f"Configuração não contém seção '{section}'")
+        if not isinstance(self.config, dict):
+            raise ValueError("Configuração deve ser um dicionário")
+
+        # Verifica seção de conexão obrigatória
+        if 'connection' not in self.config:
+            raise ValueError("Configuração deve conter seção 'connection'")
+
+        # Valida formatos e tipos
+        conn_config = self.config.get('connection', {})
+
+        if not isinstance(conn_config.get('port', 1521), int):
+            raise ValueError("Porta deve ser um número inteiro")
 
     def _set_credentials(self) -> None:
         """
         Configura credenciais de acesso ao banco de dados.
 
-        Prioriza variáveis de ambiente, depois arquivos de configuração
-        e por último valores no dicionário de configuração.
+        Prioriza variáveis de ambiente por segurança, depois configuração.
         """
         # Prioridade 1: Variáveis de ambiente
         self.username = os.environ.get('ORACLE_USERNAME')
         self.password = os.environ.get('ORACLE_PASSWORD')
 
-        # Prioridade 2: Configuração
+        # Prioridade 2: Arquivo de configuração
         if not self.username or not self.password:
             conn_config = self.config.get('connection', {})
             self.username = conn_config.get('username', 'system')
@@ -119,9 +130,10 @@ class OracleConnector:
         """
         Inicializa esquemas SQL para criação e migração de tabelas.
 
-        Define esquemas de acordo com as necessidades do sistema.
+        Define tabelas adequadas para o contexto agrícola com campos de
+        auditoria e índices para otimização de consultas.
         """
-        # Tabela de sessões
+        # Tabela de sessões com campos de auditoria
         self.table_schemas = {
             'sessions': """
                 CREATE TABLE sessions (
@@ -186,31 +198,39 @@ class OracleConnector:
                     loss_percent NUMBER(5,2),
                     factors VARCHAR2(200),
                     confidence_level VARCHAR2(10),
+                    field_conditions TEXT,
                     PRIMARY KEY (id),
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
                 )
             """,
             # Índices para otimização de consultas
             'indices': [
-                "CREATE INDEX idx_sensor_session_time ON sensor_data(session_id, timestamp)",
-                "CREATE INDEX idx_emissions_session_cat ON ghg_emissions(session_id, category)",
-                "CREATE INDEX idx_carbon_session_type ON carbon_stocks(session_id, stock_type)",
-                "CREATE INDEX idx_harvest_session_time ON harvest_losses(session_id, timestamp)"
+                """CREATE INDEX idx_sensor_session_time
+                   ON sensor_data(session_id, timestamp)""",
+                """CREATE INDEX idx_emissions_session_cat
+                   ON ghg_emissions(session_id, category)""",
+                """CREATE INDEX idx_carbon_session_type
+                   ON carbon_stocks(session_id, stock_type)""",
+                """CREATE INDEX idx_harvest_session_time
+                   ON harvest_losses(session_id, timestamp)"""
             ]
         }
 
     def initialize(self) -> bool:
         """
-        Inicializa o pool de conexões Oracle e verifica estrutura do banco.
+        Inicializa o pool de conexões Oracle.
+
+        Estabelece a conexão com o banco de dados e cria o pool para
+        compartilhamento entre componentes do sistema.
 
         Returns:
-            bool: Verdadeiro se inicialização foi bem-sucedida
+            bool: True se inicialização bem-sucedida, False caso contrário
         """
         if self.initialized:
             return True
 
         if self.simulated_mode:
-            logger.info("Modo simulado: não conectando realmente ao Oracle")
+            logger.info("Modo simulado ativo: não conectando ao Oracle")
             self.initialized = True
             return True
 
@@ -233,6 +253,7 @@ class OracleConnector:
                 max=self.max_connections,
                 increment=self.increment,
                 threaded=True,
+                timeout=self.timeout,
                 getmode=cx_Oracle.SPOOL_ATTRVAL_WAIT
             )
 
@@ -258,14 +279,15 @@ class OracleConnector:
             return False
 
     @contextmanager
-    def get_connection(self) -> ContextManager[cx_Oracle.Connection]:
+    def get_connection(self):
         """
         Obtém conexão do pool com gerenciamento de contexto.
 
-        Implementa padrão context manager para garantir liberação da conexão.
+        Implementa padrão context manager para garantir liberação da conexão
+        e mecanismo de retry com backoff exponencial para falhas transitórias.
 
-        Returns:
-            ContextManager: Gerenciador de contexto com conexão Oracle
+        Yields:
+            Connection: Conexão Oracle do pool
 
         Raises:
             RuntimeError: Se pool não estiver inicializado
@@ -303,6 +325,7 @@ class OracleConnector:
             # Aplica política de retry
             retries = 0
             delay = self.retry_delay
+            last_error = None
 
             while retries <= self.max_retries:
                 try:
@@ -310,24 +333,46 @@ class OracleConnector:
                     break
                 except cx_Oracle.Error as e:
                     retries += 1
+                    last_error = e
+
                     if retries > self.max_retries:
+                        logger.error(f"Máximo de tentativas alcançado ({self.max_retries})")
                         raise
 
                     # Aplica backoff exponencial
+                    error_obj, = e.args
                     logger.warning(f"Falha ao obter conexão, tentativa {retries}. "
+                                  f"Erro: {error_obj.message}. "
                                   f"Aguardando {delay}s.")
                     time.sleep(delay)
                     delay *= self.retry_backoff
 
-            # Configura ambiente da sessão se necessário
-            # connection.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD'")
-
-            yield connection
+            if connection:
+                # Configura ambiente da sessão se necessário
+                # connection.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD'")
+                yield connection
+            else:
+                if last_error:
+                    raise last_error
+                raise RuntimeError("Falha ao obter conexão do pool")
 
         except cx_Oracle.Error as e:
             error_obj, = e.args
             logger.error(f"Erro na conexão Oracle: {error_obj.message} "
                         f"(código: {error_obj.code})")
+            if connection:
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+            raise
+        except Exception as e:
+            logger.error(f"Erro inesperado: {str(e)}")
+            if connection:
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
             raise
         finally:
             if connection:
@@ -338,10 +383,12 @@ class OracleConnector:
 
     def shutdown(self) -> bool:
         """
-        Encerra pool de conexões de forma segura.
+        Encerra o pool de conexões de forma segura.
+
+        Libera todos os recursos associados ao pool de conexões.
 
         Returns:
-            bool: Verdadeiro se encerramento foi bem-sucedido
+            bool: True se encerramento bem-sucedido, False caso contrário
         """
         if self.simulated_mode:
             self.initialized = False
@@ -368,10 +415,11 @@ class OracleConnector:
         """
         Cria tabelas necessárias no banco de dados.
 
-        Verifica existência prévia e cria apenas tabelas ausentes.
+        Verifica a existência prévia e cria apenas tabelas ausentes.
+        Executa dentro de uma transação para garantir atomicidade.
 
         Returns:
-            bool: Verdadeiro se operação foi bem-sucedida
+            bool: True se operação bem-sucedida, False caso contrário
         """
         if self.simulated_mode:
             return True
@@ -437,7 +485,7 @@ class OracleConnector:
                                 logger.warning(f"Erro ao criar índice: {error_obj.message}")
 
                 conn.commit()
-                logger.info("Criação/verificação de tabelas concluída")
+                logger.info("Criação/verificação de tabelas concluída com sucesso")
                 return True
 
         except cx_Oracle.Error as e:
@@ -448,374 +496,176 @@ class OracleConnector:
             logger.error(f"Erro inesperado ao criar tabelas: {str(e)}")
             return False
 
-    def start_session(self, session_id: str, metadata: Optional[Dict] = None) -> bool:
+    def execute_query(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List:
         """
-        Inicia uma sessão no banco de dados.
+        Executa consulta SQL com parâmetros e retorna resultados.
+
+        Usa prepared statements para proteção contra injeção SQL.
 
         Args:
-            session_id: Identificador único da sessão
-            metadata: Metadados opcionais da sessão
+            sql: Consulta SQL a ser executada
+            params: Parâmetros para a consulta (opcional)
 
         Returns:
-            bool: Verdadeiro se operação foi bem-sucedida
+            List: Registros retornados pela consulta
+
+        Raises:
+            RuntimeError: Se pool não estiver inicializado
+            cx_Oracle.Error: Se ocorrer erro durante a execução
         """
         if self.simulated_mode:
-            return True
+            return [[1]]
 
         if not self.initialized and not self.initialize():
-            return False
+            raise RuntimeError("Pool de conexões não inicializado")
 
-        metadata = metadata or {}
+        params = params or {}
 
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                return rows
+        except cx_Oracle.Error as e:
+            error_obj, = e.args
+            logger.error(f"Erro ao executar consulta: {error_obj.message}")
+            raise
+        except Exception as e:
+            logger.error(f"Erro inesperado ao executar consulta: {str(e)}")
+            raise
 
-                # Verifica se sessão já existe
-                cursor.execute(
-                    "SELECT COUNT(*) FROM sessions WHERE session_id = :session_id",
-                    session_id=session_id
-                )
+    def execute_batch(self, sql: str, batch_data: List[Dict[str, Any]]) -> int:
+        """
+        Executa comando SQL em lote para múltiplos registros.
 
-                if cursor.fetchone()[0] > 0:
-                    logger.warning(f"Sessão {session_id} já existe")
-                    return False
+        Otimizado para operações de inserção em massa.
 
-                # Insere nova sessão
-                now = datetime.now()
-                created_by = metadata.get('created_by', 'system')
+        Args:
+            sql: Comando SQL a ser executado
+            batch_data: Lista de dicionários com parâmetros para cada registro
 
-                sql = """
-                    INSERT INTO sessions (
-                        session_id, start_timestamp, status,
-                        created_by, last_updated, version
-                    ) VALUES (
-                        :session_id, :start_timestamp, :status,
-                        :created_by, :last_updated, 1
-                    )
-                """
+        Returns:
+            int: Número de registros processados
 
-                cursor.execute(
-                    sql,
-                    session_id=session_id,
-                    start_timestamp=now,
-                    status='active',
-                    created_by=created_by,
-                    last_updated=now
-                )
+        Raises:
+            RuntimeError: Se pool não estiver inicializado
+            cx_Oracle.Error: Se ocorrer erro durante a execução
+        """
+        if self.simulated_mode:
+            return len(batch_data)
 
+        if not self.initialized and not self.initialize():
+            raise RuntimeError("Pool de conexões não inicializado")
+
+        if not batch_data:
+            return 0
+
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.executemany(sql, batch_data)
                 conn.commit()
-                logger.info(f"Sessão {session_id} iniciada com sucesso")
-                return True
-
+                rows_affected = cursor.rowcount
+                return rows_affected
         except cx_Oracle.Error as e:
             error_obj, = e.args
-            logger.error(f"Erro ao iniciar sessão: {error_obj.message}")
-            return False
+            logger.error(f"Erro ao executar lote: {error_obj.message}")
+            raise
         except Exception as e:
-            logger.error(f"Erro inesperado ao iniciar sessão: {str(e)}")
-            return False
+            logger.error(f"Erro inesperado ao executar lote: {str(e)}")
+            raise
 
-    def end_session(self, session_id: str, metadata: Optional[Dict] = None) -> bool:
+    def is_healthy(self) -> bool:
         """
-        Finaliza uma sessão no banco de dados.
+        Verifica se a conexão com o banco está saudável.
 
-        Args:
-            session_id: Identificador da sessão
-            metadata: Metadados opcionais de encerramento
+        Útil para health checks da aplicação.
 
         Returns:
-            bool: Verdadeiro se operação foi bem-sucedida
+            bool: True se conexão está saudável, False caso contrário
         """
         if self.simulated_mode:
             return True
 
-        if not self.initialized and not self.initialize():
+        if not self.initialized:
             return False
-
-        metadata = metadata or {}
 
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-
-                # Verifica se sessão existe e está ativa
-                cursor.execute("""
-                    SELECT status, version FROM sessions
-                    WHERE session_id = :session_id
-                """, session_id=session_id)
-
+                cursor.execute("SELECT 1 FROM DUAL")
                 result = cursor.fetchone()
-                if not result:
-                    logger.warning(f"Sessão {session_id} não encontrada")
-                    return False
-
-                status, version = result
-                if status != 'active':
-                    logger.warning(f"Sessão {session_id} não está ativa (status={status})")
-                    return False
-
-                # Atualiza sessão existente com otimistic locking
-                now = datetime.now()
-
-                sql = """
-                    UPDATE sessions
-                    SET end_timestamp = :end_timestamp,
-                        status = :status,
-                        last_updated = :last_updated,
-                        version = :new_version
-                    WHERE session_id = :session_id
-                    AND version = :old_version
-                """
-
-                cursor.execute(
-                    sql,
-                    end_timestamp=now,
-                    status='completed',
-                    last_updated=now,
-                    new_version=version + 1,
-                    session_id=session_id,
-                    old_version=version
-                )
-
-                if cursor.rowcount == 0:
-                    logger.warning(f"Conflito de versão ao finalizar sessão {session_id}")
-                    conn.rollback()
-                    return False
-
-                conn.commit()
-                logger.info(f"Sessão {session_id} finalizada com sucesso")
-                return True
-
-        except cx_Oracle.Error as e:
-            error_obj, = e.args
-            logger.error(f"Erro ao finalizar sessão: {error_obj.message}")
-            return False
-        except Exception as e:
-            logger.error(f"Erro inesperado ao finalizar sessão: {str(e)}")
+                return result[0] == 1
+        except Exception:
             return False
 
-    def save_sensor_data(self, session_id: str,
-                       sensor_data: Dict[str, Any]) -> bool:
+    def get_database_info(self) -> Dict[str, str]:
         """
-        Salva dados de sensores no banco.
-
-        Utiliza inserção em lote para maior eficiência.
-
-        Args:
-            session_id: Identificador da sessão
-            sensor_data: Dados dos sensores
+        Obtém informações sobre o banco de dados conectado.
 
         Returns:
-            bool: Verdadeiro se operação foi bem-sucedida
+            Dict: Informações do banco de dados
         """
         if self.simulated_mode:
-            return True
+            return {
+                "version": "Oracle Database 19c Simulated",
+                "instance_name": "SIMULATED",
+                "hostname": "localhost",
+                "database_name": "ORCL"
+            }
 
         if not self.initialized and not self.initialize():
-            return False
+            return {"error": "Não inicializado"}
 
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-
-                # Verifica se sessão existe e está ativa
                 cursor.execute("""
-                    SELECT status FROM sessions
-                    WHERE session_id = :session_id
-                """, session_id=session_id)
+                    SELECT banner, instance_name, host_name, name
+                    FROM v$version, v$instance, v$database
+                    WHERE rownum = 1
+                """)
+                row = cursor.fetchone()
 
-                result = cursor.fetchone()
-                if not result or result[0] != 'active':
-                    logger.warning(f"Sessão {session_id} não encontrada ou não ativa")
-                    return False
-
-                # Prepara inserção em lote
-                sql = """
-                    INSERT INTO sensor_data (
-                        session_id, timestamp, sensor_type,
-                        sensor_value, unit, quality_flag
-                    ) VALUES (
-                        :session_id, :timestamp, :sensor_type,
-                        :sensor_value, :unit, :quality_flag
-                    )
-                """
-
-                # Prepara dados para inserção em lote
-                batch_data = []
-                now = datetime.now()
-
-                for sensor_name, reading in sensor_data.items():
-                    # Processa cada leitura de sensor
-                    if isinstance(reading, dict) and 'value' in reading:
-                        # Formato completo com timestamp e unidade
-                        timestamp = datetime.fromisoformat(
-                            reading.get('timestamp', now.isoformat())
-                        )
-                        sensor_value = reading['value']
-                        unit = reading.get('unit', '')
-                    else:
-                        # Formato simplificado (apenas valor)
-                        timestamp = now
-                        sensor_value = reading
-                        unit = ''
-
-                    # Validação básica dos dados
-                    if not isinstance(sensor_value, (int, float)):
-                        continue
-
-                    batch_data.append({
-                        'session_id': session_id,
-                        'timestamp': timestamp,
-                        'sensor_type': sensor_name,
-                        'sensor_value': sensor_value,
-                        'unit': unit,
-                        'quality_flag': 'GOOD'
-                    })
-
-                # Executa inserção em lote se houver dados
-                if batch_data:
-                    cursor.executemany(sql, batch_data)
-                    conn.commit()
-                    logger.info(f"Salvos {len(batch_data)} registros de sensores "
-                               f"para sessão {session_id}")
-                    return True
-                else:
-                    logger.warning("Nenhum dado válido para salvar")
-                    return False
-
-        except cx_Oracle.Error as e:
-            error_obj, = e.args
-            logger.error(f"Erro ao salvar dados de sensores: {error_obj.message}")
-            return False
+                if row:
+                    return {
+                        "version": row[0],
+                        "instance_name": row[1],
+                        "hostname": row[2],
+                        "database_name": row[3]
+                    }
+                return {"error": "Informações não disponíveis"}
         except Exception as e:
-            logger.error(f"Erro inesperado ao salvar dados de sensores: {str(e)}")
-            return False
+            logger.error(f"Erro ao obter informações do banco: {str(e)}")
+            return {"error": str(e)}
 
-    def save_ghg_emissions(self, session_id: str,
-                          emissions_data: Dict[str, Any]) -> bool:
+    @staticmethod
+    def classify_error(error: cx_Oracle.Error) -> Dict[str, Any]:
         """
-        Salva dados de emissões GHG no banco.
+        Classifica erro Oracle por tipo para tratamento apropriado.
 
         Args:
-            session_id: Identificador da sessão
-            emissions_data: Dados de emissões
+            error: Objeto de erro Oracle
 
         Returns:
-            bool: Verdadeiro se operação foi bem-sucedida
+            Dict: Classificação do erro com info adicional
         """
-        if self.simulated_mode:
-            return True
+        error_obj, = error.args
+        error_code = error_obj.code
 
-        if not self.initialized and not self.initialize():
-            return False
+        # Categorias de erro
+        connection_errors = [3113, 3114, 12541, 12545]  # Problemas de conexão
+        constraint_errors = [1, 2290, 2291, 2292]  # Violações de constraint
+        permission_errors = [1031, 1017]  # Erros de permissão
 
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
+        result = {
+            "code": error_code,
+            "message": error_obj.message,
+            "is_connection_error": error_code in connection_errors,
+            "is_constraint_error": error_code in constraint_errors,
+            "is_permission_error": error_code in permission_errors,
+            "is_recoverable": error_code in connection_errors,
+        }
 
-                # Verifica se sessão existe
-                cursor.execute("""
-                    SELECT status FROM sessions
-                    WHERE session_id = :session_id
-                """, session_id=session_id)
-
-                if not cursor.fetchone():
-                    logger.warning(f"Sessão {session_id} não encontrada")
-                    return False
-
-                # Prepara SQL para inserção
-                sql = """
-                    INSERT INTO ghg_emissions (
-                        session_id, timestamp, scope, category, source,
-                        gas, value, unit, calculation_method, uncertainty_percent
-                    ) VALUES (
-                        :session_id, :timestamp, :scope, :category, :source,
-                        :gas, :value, :unit, :calculation_method, :uncertainty_percent
-                    )
-                """
-
-                # Prepara dados para inserção em lote
-                batch_data = []
-                now = datetime.now()
-
-                # Processa cada escopo de emissões
-                for scope_name, scope_data in emissions_data.items():
-                    if not isinstance(scope_data, dict):
-                        continue
-
-                    scope_num = int(scope_name.replace('scope', ''))
-
-                    # Escopo 1 tem categorias
-                    if scope_num == 1:
-                        for category, category_data in scope_data.items():
-                            if not isinstance(category_data, dict):
-                                continue
-
-                            for source, source_data in category_data.items():
-                                if not isinstance(source_data, dict):
-                                    continue
-
-                                for gas, value in source_data.items():
-                                    # Pula entradas que não são gases
-                                    if gas not in ['CO2', 'CH4', 'N2O', 'CO2e']:
-                                        continue
-
-                                    batch_data.append({
-                                        'session_id': session_id,
-                                        'timestamp': now,
-                                        'scope': scope_num,
-                                        'category': category,
-                                        'source': source,
-                                        'gas': gas,
-                                        'value': value,
-                                        'unit': 'kg',
-                                        'calculation_method': 'tier1',
-                                        'uncertainty_percent': 10.0  # Valor padrão
-                                    })
-                    else:
-                        # Escopos 2 e 3 são mais simples
-                        for source, source_data in scope_data.items():
-                            if not isinstance(source_data, dict):
-                                continue
-
-                            for gas, value in source_data.items():
-                                # Pula entradas que não são gases
-                                if gas not in ['CO2', 'CH4', 'N2O', 'CO2e']:
-                                    continue
-
-                                batch_data.append({
-                                    'session_id': session_id,
-                                    'timestamp': now,
-                                    'scope': scope_num,
-                                    'category': '',
-                                    'source': source,
-                                    'gas': gas,
-                                    'value': value,
-                                    'unit': 'kg',
-                                    'calculation_method': 'tier1',
-                                    'uncertainty_percent': 10.0  # Valor padrão
-                                })
-
-                # Executa inserção em lote se houver dados
-                if batch_data:
-                    cursor.executemany(sql, batch_data)
-                    conn.commit()
-                    logger.info(f"Salvos {len(batch_data)} registros de emissões GHG "
-                               f"para sessão {session_id}")
-                    return True
-                else:
-                    logger.warning("Nenhum dado válido de emissão para salvar")
-                    return False
-
-        except cx_Oracle.Error as e:
-            error_obj, = e.args
-            logger.error(f"Erro ao salvar emissões GHG: {error_obj.message}")
-            return False
-        except Exception as e:
-            logger.error(f"Erro inesperado ao salvar emissões GHG: {str(e)}")
-            return False
-
-    # Outros métodos de persistência (carbon_stocks, harvest_losses) seguem
-    # o mesmo padrão dos métodos anteriores, com validação, preparação e
-    # inserção em lote
+        return result
