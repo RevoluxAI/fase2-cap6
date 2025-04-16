@@ -44,24 +44,30 @@ O sistema seguirá uma arquitetura em camadas, composta por:
 - Simulador de emissões de gases (CH₄ e NH₃)
 - Simulador de detecção visual baseado em dados históricos
 
-#### 4.2.2. Contabilizador de GHG
+#### 4.2.2. Gases usados no cálculo:
+- CO2  - Gás Carbônico (dióxido de carbono)
+- CH4  - Gás Natural (metano)
+- N2O  - Gás Incolor (óxido nitroso)
+- CO2e - Gás de Efeito Estufa (dióxido de carbono equivalente)
+
+#### 4.2.3. Contabilizador de GHG
 - Módulo de definição de limites organizacionais e operacionais
 - Módulo de cálculo de emissões de Escopo 1 (diretas)
 - Módulo de cálculo de emissões de Escopo 2 (energia adquirida)
 - Módulo de cálculo de emissões de Escopo 3 (opcional, outras indiretas)
 - Módulo de contabilização de estoques de carbono
 
-#### 4.2.3. Processador de Dados
+#### 4.2.4. Processador de Dados
 - Módulo de normalização e limpeza de dados
 - Módulo de detecção de anomalias
 - Módulo de correlação entre variáveis operacionais, perdas e emissões
 - Módulo de recomendações baseado em regras e histórico
 
-#### 4.2.4. Sistema de Persistência
+#### 4.2.5. Sistema de Persistência
 - Gerenciador de arquivos JSON
 - Conector de banco de dados Oracle
 
-#### 4.2.5. Interface com Usuário
+#### 4.2.6. Interface com Usuário
 - Menu interativo via terminal
 - Visualizador de dados e estatísticas
 - Gerador de relatórios de perdas e inventários de GHG
@@ -343,6 +349,7 @@ cana-loss-reduction/
 │   ├── test_carbon_stock_manager.py
 │   ├── test_data_analyzer.py
 │   ├── test_json_manager.py
+│   ├── test_recommendation_engine.py
 │   └── test_oracle_connector.py
 │
 ├── data/
@@ -1318,6 +1325,11 @@ class TestCarbonStockManager(unittest.TestCase):
         )
 ```
 
+Para executar todos os testes, execute:
+
+    $ PYTHONPATH=src pytest tests/
+
+
 ## 7. Cronograma de Desenvolvimento
 
 | Dia | Atividades |
@@ -1343,9 +1355,3 @@ O sistema possibilitará:
 5. Prever impactos de diferentes práticas de manejo
 
 Esta abordagem multidimensional coloca o projeto na vanguarda da agricultura de precisão, oferecendo ferramentas que potencializam tanto a eficiência econômica quanto a responsabilidade ambiental no setor sucroalcooleiro brasileiro.
-
-Gases usados no cálculo:
-- CO2  - Gás Carbônico (dióxido de carbono)
-- CH4  - Gás Natural (metano)
-- N2O  - Gás Incolor (óxido nitroso)
-- CO2e - Gás de Efeito Estufa (dióxido de carbono equivalente)

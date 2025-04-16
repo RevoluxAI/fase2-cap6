@@ -4,8 +4,8 @@
 # 6.4. Testes Unitários
 # tests/test_emissions_calculator.py
 import unittest
-from ghg_inventory.boundary_manager import BoundaryManager
-from ghg_inventory.emissions_calculator import EmissionsCalculator
+from src.ghg_inventory.boundary_manager import BoundaryManager
+from src.ghg_inventory.emissions_calculator import EmissionsCalculator
 
 class TestEmissionsCalculator(unittest.TestCase):
     """

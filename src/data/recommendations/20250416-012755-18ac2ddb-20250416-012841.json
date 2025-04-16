@@ -1,0 +1,36 @@
+{
+  "session_id": "20250416-012755-18ac2ddb",
+  "timestamp": "2025-04-16T01:28:41.292404",
+  "recommendations": {
+    "timestamp": "2025-04-16T01:29:40.787200",
+    "loss_estimate": 7.2940000000000005,
+    "loss_category": "low",
+    "recommendations": [
+      {
+        "factor": "temperature",
+        "text": "Aguardar aumento da temperatura se poss\u00edvel",
+        "priority": "high"
+      },
+      {
+        "factor": "wind_speed",
+        "text": "Reduzir velocidade da colheitadeira em condi\u00e7\u00f5es de vento forte",
+        "priority": "medium"
+      },
+      {
+        "factor": "wind_speed",
+        "text": "Ajustar dire\u00e7\u00e3o de colheita considerando dire\u00e7\u00e3o do vento",
+        "priority": "low"
+      },
+      {
+        "factor": "soil_humidity",
+        "text": "Considerar irriga\u00e7\u00e3o pr\u00e9-colheita se vi\u00e1vel",
+        "priority": "low"
+      }
+    ],
+    "summary": {
+      "specific_count": 4,
+      "general_count": 0,
+      "total_count": 4
+    }
+  }
+}

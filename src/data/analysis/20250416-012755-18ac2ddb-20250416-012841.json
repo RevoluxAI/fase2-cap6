@@ -1,0 +1,41 @@
+{
+  "session_id": "20250416-012755-18ac2ddb",
+  "timestamp": "2025-04-16T01:28:41.292246",
+  "analysis": {
+    "timestamp": "2025-04-16T01:29:40.787200",
+    "loss_estimate": 7.2940000000000005,
+    "loss_category": "low",
+    "problematic_factors": [
+      {
+        "factor": "temperature",
+        "value": 16.3,
+        "optimal_range": [
+          20,
+          30
+        ],
+        "severity": 0.7399999999999999,
+        "direction": "below"
+      },
+      {
+        "factor": "wind_speed",
+        "value": 12.6,
+        "optimal_range": [
+          0,
+          10
+        ],
+        "severity": 0.5199999999999999,
+        "direction": "above"
+      },
+      {
+        "factor": "soil_humidity",
+        "value": 21.68,
+        "optimal_range": [
+          25,
+          45
+        ],
+        "severity": 0.332,
+        "direction": "below"
+      }
+    ]
+  }
+}

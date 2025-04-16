@@ -1,0 +1,42 @@
+{
+  "session_id": "20250416-012755-18ac2ddb",
+  "timestamp": "2025-04-16T01:28:41.291951",
+  "data": {
+    "harvester_speed": {
+      "timestamp": "2025-04-16T01:29:40.787200",
+      "sensor": "harvester_speed",
+      "value": 5.01,
+      "unit": "km/h"
+    },
+    "cutting_height": {
+      "timestamp": "2025-04-16T01:29:40.787200",
+      "sensor": "cutting_height",
+      "value": 28.9,
+      "unit": "mm"
+    },
+    "soil_humidity": {
+      "timestamp": "2025-04-16T01:29:40.787200",
+      "sensor": "soil_humidity",
+      "value": 21.68,
+      "unit": "%"
+    },
+    "ch4_emission": {
+      "timestamp": "2025-04-16T01:29:40.787200",
+      "sensor": "ch4_emission",
+      "value": 7.332,
+      "unit": "kg/h"
+    },
+    "nh3_emission": {
+      "timestamp": "2025-04-16T01:29:40.787200",
+      "sensor": "nh3_emission",
+      "value": 8.554,
+      "unit": "kg/h"
+    },
+    "timestamp": "2025-04-16T01:29:40.787200",
+    "temperature": 16.3,
+    "humidity": 94.3,
+    "wind_speed": 12.6,
+    "precipitation": 0,
+    "is_raining": false
+  }
+}

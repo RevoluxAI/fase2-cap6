@@ -1,0 +1,21 @@
+{
+  "session_id": "20250416-012755-18ac2ddb",
+  "timestamp": "2025-04-16T01:28:40.989638",
+  "analysis": {
+    "timestamp": "2025-04-16T01:29:10.787200",
+    "loss_estimate": 6.135999999999999,
+    "loss_category": "low",
+    "problematic_factors": [
+      {
+        "factor": "wind_speed",
+        "value": 12.5,
+        "optimal_range": [
+          0,
+          10
+        ],
+        "severity": 0.5,
+        "direction": "above"
+      }
+    ]
+  }
+}
