@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 2. Processador de Dados e Motor de Recomendações
-# src/processing/data_analyzer.py
+# Processador de Dados e Motor de Recomendações
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 class DataAnalyzer:
     """

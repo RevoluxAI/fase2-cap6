@@ -12,12 +12,12 @@ de análise de perdas na colheita de cana-de-açúcar.
 import logging
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 
 import cx_Oracle
 
 from persistence.oracle.connector import OracleConnector
-from persistence.oracle.error_handler import OracleError, with_error_handling, with_retry
+from persistence.oracle.error_handler import with_error_handling, with_retry
 
 # Configuração de logging
 logger = logging.getLogger(__name__)

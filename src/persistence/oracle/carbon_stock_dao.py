@@ -11,7 +11,7 @@ GHG para o setor agrícola e considerando a amortização de mudanças.
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, List
 
 import cx_Oracle
 

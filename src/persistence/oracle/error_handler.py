@@ -11,7 +11,7 @@ especialmente no contexto de monitoramento de perdas na colheita.
 
 import logging
 import cx_Oracle
-from typing import Dict, Any, Optional, Callable, List, Tuple, Type, Union
+from typing import Dict, Any, Optional, Callable, Union
 
 # Configuração de logging
 logger = logging.getLogger(__name__)

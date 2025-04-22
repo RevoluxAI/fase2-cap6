@@ -11,8 +11,8 @@ problemáticos e recomendações para mitigação.
 
 import logging
 import json
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Union, Tuple
+from datetime import datetime
+from typing import Dict, Any, Optional, List
 
 import cx_Oracle
 

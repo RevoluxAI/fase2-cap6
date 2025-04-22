@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 6.3.5. Simulador de Sensores
-# src/simulation/sensor_simulator.py
+# Simulador de Sensores
 import random
 import math
-from datetime import datetime, timedelta
 
 class SensorSimulator:
     """

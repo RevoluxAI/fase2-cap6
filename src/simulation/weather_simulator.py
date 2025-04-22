@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# src/simulation/weather_simulator.py
+# Simulador de Condições Climáticas
 import random
 import math
-from datetime import datetime, timedelta
 
 class WeatherSimulator:
     """

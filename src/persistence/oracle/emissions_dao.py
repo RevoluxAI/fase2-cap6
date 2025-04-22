@@ -11,7 +11,7 @@ protocolo GHG para o setor agrícola.
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, List
 
 import cx_Oracle
 

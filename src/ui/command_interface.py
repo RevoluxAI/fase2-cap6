@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 4. Interface de Linha de Comando
-# src/ui/command_interface.py
+# Interface de Linha de Comando
 import os
 import time
 import json
@@ -715,12 +714,20 @@ class CommandInterface:
                 timestamp = data.get('timestamp', 'desconhecido')
                 sensors = data.get('data', {})
 
+                # Extrai timestamp comum dos sensores para comparação
+                common_timestamp = self._get_common_sensor_timestamp(sensors)
+
                 # Busca dado de análise correspondente para mostrar perda estimada
                 loss_estimate = "N/A"
                 for analysis in analysis_data_list:
-                    if analysis.get('analysis', {}).get('timestamp') == timestamp:
-                        loss_estimate = f"{analysis.get('analysis', {}).get('loss_estimate', 'N/A'):.1f}%"
+                    analysis_timestamp = analysis.get('analysis', {}).get('timestamp')
+
+                    if analysis_timestamp == common_timestamp:
+                        loss_val = analysis.get('analysis', {}).get('loss_estimate')
+                        if isinstance(loss_val, (int, float)):
+                            loss_estimate = f"{loss_val:.1f}%"
                         break
+
 
                 # Categoriza sensores
                 operational_sensors = []
@@ -872,6 +879,28 @@ class CommandInterface:
             print("\nEntrada inválida! Digite um número.")
 
         self._wait_keypress()
+
+
+    def _get_common_sensor_timestamp(self, sensor_data):
+        """
+        Extrai o timestamp comum dos dados de sensores.
+
+        Args:
+            sensor_data (dict): Dicionário com dados de sensores
+
+        Returns:
+            str: Timestamp comum ou None se não encontrado
+        """
+        # Verifica se existe timestamp no nível superior do objeto data
+        if 'timestamp' in sensor_data:
+            return sensor_data['timestamp']
+
+        # Busca em qualquer sensor (todos compartilham o mesmo timestamp)
+        for sensor_name, reading in sensor_data.items():
+            if isinstance(reading, dict) and 'timestamp' in reading:
+                return reading['timestamp']
+
+        return None
 
     def _get_sensor_value(self, sensors, sensor_name, default="N/A"):
         """

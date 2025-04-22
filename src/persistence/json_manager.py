@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 3. Sistema de Persistência
-# src/persistence/json_manager.py
+# Sistema de Persistência
 import os
 import json
 import uuid
