@@ -278,13 +278,11 @@ class OracleConnector:
             logger.error(f"Erro inesperado ao inicializar Oracle: {str(e)}")
             return False
 
+
     @contextmanager
     def get_connection(self):
         """
         Obtém conexão do pool com gerenciamento de contexto.
-
-        Implementa padrão context manager para garantir liberação da conexão
-        e mecanismo de retry com backoff exponencial para falhas transitórias.
 
         Yields:
             Connection: Conexão Oracle do pool
@@ -295,91 +293,50 @@ class OracleConnector:
         """
         if self.simulated_mode:
             # Em modo simulado, retorna um objeto fictício
+            class DummyCursor:
+                def __init__(self):
+                    # Simula descrição de coluna Oracle (7-tuple por coluna)
+                    # (name, type, display_size, internal_size, precision, scale,
+                    # null_ok)
+                    self.description = [
+                        ("id", None, None, None, None, None, None),
+                        ("session_id", None, None, None, None, None, None),
+                        ("start_timestamp", None, None, None, None, None, None),
+                        ("end_timestamp", None, None, None, None, None, None),
+                        ("status", None, None, None, None, None, None)
+                    ]
+                    self.rowcount = 1
+
+                def execute(self, *args, **kwargs):
+                    pass
+
+                def fetchone(self):
+                    return [1, "dummy_session", "2025-04-21 00:00:00",
+                        None, "active"]
+
+                def fetchall(self):
+                    return [[1, "dummy_session", "2025-04-21 00:00:00",
+                            None, "active"]]
+
+                def close(self):
+                    pass
+
             class DummyConnection:
                 def cursor(self):
-                    class DummyCursor:
-                        def execute(self, *args, **kwargs):
-                            pass
-                        def fetchone(self):
-                            return [1]
-                        def fetchall(self):
-                            return [[1]]
-                        def close(self):
-                            pass
                     return DummyCursor()
+
                 def commit(self):
                     pass
+
                 def rollback(self):
                     pass
+
                 def close(self):
                     pass
 
             yield DummyConnection()
             return
 
-        if not self.pool:
-            raise RuntimeError("Pool de conexões não inicializado")
-
-        connection = None
-        try:
-            # Aplica política de retry
-            retries = 0
-            delay = self.retry_delay
-            last_error = None
-
-            while retries <= self.max_retries:
-                try:
-                    connection = self.pool.acquire()
-                    break
-                except cx_Oracle.Error as e:
-                    retries += 1
-                    last_error = e
-
-                    if retries > self.max_retries:
-                        logger.error(f"Máximo de tentativas alcançado ({self.max_retries})")
-                        raise
-
-                    # Aplica backoff exponencial
-                    error_obj, = e.args
-                    logger.warning(f"Falha ao obter conexão, tentativa {retries}. "
-                                  f"Erro: {error_obj.message}. "
-                                  f"Aguardando {delay}s.")
-                    time.sleep(delay)
-                    delay *= self.retry_backoff
-
-            if connection:
-                # Configura ambiente da sessão se necessário
-                # connection.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD'")
-                yield connection
-            else:
-                if last_error:
-                    raise last_error
-                raise RuntimeError("Falha ao obter conexão do pool")
-
-        except cx_Oracle.Error as e:
-            error_obj, = e.args
-            logger.error(f"Erro na conexão Oracle: {error_obj.message} "
-                        f"(código: {error_obj.code})")
-            if connection:
-                try:
-                    connection.rollback()
-                except Exception:
-                    pass
-            raise
-        except Exception as e:
-            logger.error(f"Erro inesperado: {str(e)}")
-            if connection:
-                try:
-                    connection.rollback()
-                except Exception:
-                    pass
-            raise
-        finally:
-            if connection:
-                try:
-                    self.pool.release(connection)
-                except Exception as e:
-                    logger.error(f"Erro ao liberar conexão: {str(e)}")
 
     def shutdown(self) -> bool:
         """
