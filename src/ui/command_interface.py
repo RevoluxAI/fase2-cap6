@@ -2580,12 +2580,698 @@ class CommandInterface:
 
     def _view_recommendations(self):
         """
-        Visualiza recomendações geradas.
+        Visualiza recomendações geradas para redução de perdas na colheita.
+
+        Apresenta recomendações organizadas por prioridade e fator relacionado,
+        com opções para filtrar por tipo e exibir detalhes específicos.
         """
-        # Implementação simplificada
-        self._print_header("Recomendações")
-        print("\nFuncionalidade em desenvolvimento.")
+        while True:
+            self._print_header("Recomendações")
+
+            if not self.session_id:
+                print("\nNenhuma sessão ativa para visualizar recomendações!")
+                self._wait_keypress()
+                return
+
+            # Carrega dados necessários
+            recommendation_data = self._load_recommendation_data()
+            analysis_data = self._load_analysis_data()
+
+            if not recommendation_data:
+                print("\nNenhuma recomendação encontrada para esta sessão!")
+                self._wait_keypress()
+                return
+
+            # Adiciona explicação contextual sobre a tela
+            print("\nEsta tela apresenta recomendações para reduzir perdas na colheita,")
+            print("organizadas por prioridade e fator relacionado. As recomendações")
+            print("são baseadas na análise dos dados coletados pelos sensores durante")
+            print("a simulação de colheita.")
+
+            # Exibe resumo de recomendações
+            total_recs = len(recommendation_data)
+            high_priority = sum(1 for r in recommendation_data
+                            if r.get('priority') == 'high')
+            medium_priority = sum(1 for r in recommendation_data
+                                if r.get('priority') == 'medium')
+            low_priority = sum(1 for r in recommendation_data
+                            if r.get('priority') == 'low')
+
+            print(f"\nTotal de recomendações: {total_recs}")
+            print(f"• Alta prioridade: {high_priority}")
+            print(f"• Média prioridade: {medium_priority}")
+            print(f"• Baixa prioridade: {low_priority}")
+
+            # Menu de visualização
+            print("\nOPÇÕES DE VISUALIZAÇÃO:")
+            print("1. Ver recomendações por prioridade")
+            print("2. Ver recomendações por fator")
+            print("3. Ver recomendações gerais")
+            print("4. Ver todas as recomendações")
+            print("5. Filtrar recomendações")
+            print("6. Exportar recomendações")
+            print("7. Voltar ao menu anterior")
+
+            choice = self._input_with_prompt("\nEscolha uma opção", "7")
+
+            if choice == '1':
+                self._view_recommendations_by_priority(recommendation_data)
+            elif choice == '2':
+                # Agrupa recomendações por fator
+                factors = {}
+                for rec in recommendation_data:
+                    factor = rec.get('factor', 'general')
+                    if factor != 'general':
+                        if factor not in factors:
+                            factors[factor] = []
+                        factors[factor].append(rec)
+
+                self._view_recommendations_by_factor(factors)
+            elif choice == '3':
+                # Identifica recomendações gerais
+                general_recs = [r for r in recommendation_data
+                            if r.get('factor', 'general') == 'general']
+                self._view_general_recommendations(general_recs)
+            elif choice == '4':
+                self._view_all_recommendations(recommendation_data)
+            elif choice == '5':
+                filtered_recs = self._filter_recommendations(recommendation_data)
+                if filtered_recs:
+                    self._view_all_recommendations(filtered_recs)
+            elif choice == '6':
+                self._export_recommendations(recommendation_data)
+            elif choice == '7':
+                return
+            else:
+                print("Opção inválida!")
+                self._wait_keypress()
+
+
+    def _view_recommendations_by_priority(self, recommendations):
+        """
+        Exibe recomendações organizadas por nível de prioridade.
+
+        Args:
+            recommendations (list): Lista de recomendações
+        """
+        self._print_header("Recomendações por Prioridade")
+
+        # Adiciona explicação contextual
+        print("\nEsta tela mostra as recomendações agrupadas por nível de prioridade.")
+        print("Recomendações de alta prioridade devem ser implementadas primeiro")
+        print("para obter o maior impacto na redução de perdas.")
+
+        # Agrupa por prioridade
+        by_priority = {
+            'high': [],
+            'medium': [],
+            'low': []
+        }
+
+        for rec in recommendations:
+            priority = rec.get('priority', 'low')
+            by_priority[priority].append(rec)
+
+        # Exibe recomendações de alta prioridade
+        if by_priority['high']:
+            self._print_section("ALTA PRIORIDADE (!)")
+            for i, rec in enumerate(by_priority['high'], 1):
+                factor = rec.get('factor', 'geral')
+                text = rec.get('text', '')
+                print(f"{i}. {text}")
+                print(f"   Fator relacionado: {factor}")
+
+        # Exibe recomendações de média prioridade
+        if by_priority['medium']:
+            self._print_section("MÉDIA PRIORIDADE (△)")
+            for i, rec in enumerate(by_priority['medium'], 1):
+                factor = rec.get('factor', 'geral')
+                text = rec.get('text', '')
+                print(f"{i}. {text}")
+                print(f"   Fator relacionado: {factor}")
+
+        # Exibe recomendações de baixa prioridade
+        if by_priority['low']:
+            self._print_section("BAIXA PRIORIDADE (○)")
+            for i, rec in enumerate(by_priority['low'], 1):
+                factor = rec.get('factor', 'geral')
+                text = rec.get('text', '')
+                print(f"{i}. {text}")
+                print(f"   Fator relacionado: {factor}")
+
+        # Adiciona legenda
+        print("\nLEGENDA DE PRIORIDADE:")
+        print("! Alta | △ Média | ○ Baixa")
+
         self._wait_keypress()
+
+
+    def _view_recommendations_by_factor(self, factors):
+        """
+        Exibe recomendações organizadas por fator relacionado.
+
+        Args:
+            factors (dict): Dicionário de recomendações por fator
+        """
+        self._print_header("Recomendações por Fator")
+
+        # Adiciona explicação contextual
+        print("\nEsta tela mostra as recomendações agrupadas por fator relacionado.")
+        print("Cada fator representa um parâmetro ou condição que afeta as perdas")
+        print("na colheita mecanizada de cana-de-açúcar.")
+
+        if not factors:
+            print("\nNenhuma recomendação específica por fator encontrada!")
+            self._wait_keypress()
+            return
+
+        # Exibe lista de fatores disponíveis
+        print("\nFatores disponíveis:")
+        for i, factor in enumerate(sorted(factors.keys()), 1):
+            num_recs = len(factors[factor])
+            print(f"{i}. {factor} ({num_recs} recomendações)")
+
+        # Solicita escolha do fator
+        choice = self._input_with_prompt(
+            f"\nEscolha um fator (1-{len(factors)}) ou 0 para cancelar",
+            "0"
+        )
+
+        # Verifica se a escolha é válida
+        try:
+            choice_idx = int(choice)
+            if choice_idx == 0:
+                return
+
+            if 1 <= choice_idx <= len(factors):
+                selected_factor = sorted(factors.keys())[choice_idx - 1]
+                self._display_factor_recommendations(selected_factor,
+                                                factors[selected_factor])
+            else:
+                print("\nFator inválido!")
+                self._wait_keypress()
+        except ValueError:
+            print("\nOpção inválida! Digite um número.")
+            self._wait_keypress()
+
+
+    def _display_factor_recommendations(self, factor, recommendations):
+        """
+        Exibe detalhes das recomendações para um fator específico.
+
+        Args:
+            factor (str): Nome do fator
+            recommendations (list): Lista de recomendações para o fator
+        """
+        self._print_header(f"Recomendações para {factor.upper()}")
+
+        # Adiciona explicação contextual
+        print(f"\nEsta tela mostra todas as recomendações relacionadas ao fator")
+        print(f"'{factor}', organizadas por prioridade.")
+
+        # Descrição do fator com base no nome
+        factor_descriptions = {
+            'harvester_speed': ("Velocidade da colheitadeira - Afeta diretamente "
+                            "a qualidade de corte e o nível de perdas. "
+                            "Velocidade ideal: 4,5-6,5 km/h."),
+            'cutting_height': ("Altura de corte - Determina a quantidade de "
+                            "material colhido e perdas. "
+                            "Altura ideal: 20-30 mm."),
+            'soil_humidity': ("Umidade do solo - Influencia a eficiência da "
+                        "colheita e a contaminação do material. "
+                        "Umidade ideal: 25-45%."),
+            'temperature': ("Temperatura ambiente - Afeta o desempenho de "
+                        "equipamentos e operadores. "
+                        "Temperatura ideal: 20-30°C."),
+            'wind_speed': ("Velocidade do vento - Impacta a precisão da "
+                        "colheita e pode aumentar perdas. "
+                        "Velocidade ideal: 0-10 km/h.")
+        }
+
+        # Exibe descrição do fator se disponível
+        if factor in factor_descriptions:
+            print(f"\nDESCRIÇÃO DO FATOR:")
+            print(f"{factor_descriptions[factor]}")
+
+        # Agrupa por prioridade
+        by_priority = {
+            'high': [],
+            'medium': [],
+            'low': []
+        }
+
+        for rec in recommendations:
+            priority = rec.get('priority', 'low')
+            by_priority[priority].append(rec)
+
+        # Exibe recomendações de alta prioridade
+        if by_priority['high']:
+            self._print_section("ALTA PRIORIDADE (!)")
+            for i, rec in enumerate(by_priority['high'], 1):
+                text = rec.get('text', '')
+                print(f"{i}. {text}")
+
+        # Exibe recomendações de média prioridade
+        if by_priority['medium']:
+            self._print_section("MÉDIA PRIORIDADE (△)")
+            for i, rec in enumerate(by_priority['medium'], 1):
+                text = rec.get('text', '')
+                print(f"{i}. {text}")
+
+        # Exibe recomendações de baixa prioridade
+        if by_priority['low']:
+            self._print_section("BAIXA PRIORIDADE (○)")
+            for i, rec in enumerate(by_priority['low'], 1):
+                text = rec.get('text', '')
+                print(f"{i}. {text}")
+
+        # Adiciona legenda
+        print("\nLEGENDA DE PRIORIDADE:")
+        print("! Alta | △ Média | ○ Baixa")
+
+        self._wait_keypress()
+
+
+
+    def _view_general_recommendations(self, recommendations):
+        """
+        Exibe recomendações gerais não relacionadas a fatores específicos.
+
+        Args:
+            recommendations (list): Lista de recomendações gerais
+        """
+        self._print_header("Recomendações Gerais")
+
+        # Adiciona explicação contextual
+        print("\nEsta tela mostra recomendações gerais para redução de perdas")
+        print("na colheita. Estas são boas práticas que melhoram a eficiência")
+        print("independentemente dos fatores específicos detectados.")
+
+        if not recommendations:
+            print("\nNenhuma recomendação geral encontrada!")
+            self._wait_keypress()
+            return
+
+        # Agrupa por prioridade
+        by_priority = {
+            'high': [],
+            'medium': [],
+            'low': []
+        }
+
+        for rec in recommendations:
+            priority = rec.get('priority', 'low')
+            by_priority[priority].append(rec)
+
+        # Exibe recomendações por prioridade
+        priorities = ['high', 'medium', 'low']
+        priority_titles = {
+            'high': 'ALTA PRIORIDADE (!)',
+            'medium': 'MÉDIA PRIORIDADE (△)',
+            'low': 'BAIXA PRIORIDADE (○)'
+        }
+
+        for priority in priorities:
+            if by_priority[priority]:
+                self._print_section(priority_titles[priority])
+                for i, rec in enumerate(by_priority[priority], 1):
+                    text = rec.get('text', '')
+                    print(f"{i}. {text}")
+
+        # Adiciona legenda
+        print("\nLEGENDA DE PRIORIDADE:")
+        print("! Alta | △ Média | ○ Baixa")
+
+        self._wait_keypress()
+
+
+    def _view_all_recommendations(self, recommendations):
+        """
+        Exibe todas as recomendações em uma única listagem.
+
+        Args:
+            recommendations (list): Lista completa de recomendações
+        """
+        self._print_header("Todas as Recomendações")
+
+        # Adiciona explicação contextual
+        print("\nEsta tela mostra todas as recomendações disponíveis para")
+        print("redução de perdas na colheita mecanizada de cana-de-açúcar.")
+
+        if not recommendations:
+            print("\nNenhuma recomendação encontrada!")
+            self._wait_keypress()
+            return
+
+        # Ordena por prioridade (alta → média → baixa)
+        priority_order = {'high': 0, 'medium': 1, 'low': 2}
+        sorted_recs = sorted(
+            recommendations,
+            key=lambda x: priority_order.get(x.get('priority', 'low'), 3)
+        )
+
+        # Exibe todas as recomendações
+        print("\nRECOMENDAÇÕES ORDENADAS POR PRIORIDADE:")
+        print("-" * 70)
+        print("Prioridade | Fator       | Recomendação")
+        print("-" * 70)
+
+        for rec in sorted_recs:
+            priority = rec.get('priority', 'low')
+            factor = rec.get('factor', 'geral')
+            text = rec.get('text', '')
+
+            # Formata indicador de prioridade
+            if priority == 'high':
+                priority_text = "!  ALTA   "
+            elif priority == 'medium':
+                priority_text = "△  MÉDIA  "
+            else:
+                priority_text = "○  BAIXA  "
+
+            # Trunca texto longo para caber na tela
+            if len(text) > 40:
+                display_text = text[:37] + "..."
+            else:
+                display_text = text
+
+            print(f"{priority_text} | {factor[:10]:<10} | {display_text}")
+
+        # Opção para ver detalhes
+        print("\n\nOPÇÕES:")
+        print("1. Ver detalhes de uma recomendação específica")
+        print("2. Voltar")
+
+        choice = self._input_with_prompt("\nEscolha uma opção", "2")
+
+        if choice == '1':
+            rec_idx = self._input_with_prompt(
+                f"Número da recomendação (1-{len(sorted_recs)})",
+                "1"
+            )
+
+            try:
+                idx = int(rec_idx) - 1
+                if 0 <= idx < len(sorted_recs):
+                    self._display_recommendation_details(sorted_recs[idx])
+                else:
+                    print("\nNúmero de recomendação inválido!")
+                    self._wait_keypress()
+            except ValueError:
+                print("\nOpção inválida! Digite um número.")
+                self._wait_keypress()
+
+
+    def _display_recommendation_details(self, recommendation):
+        """
+        Exibe detalhes completos de uma recomendação específica.
+
+        Args:
+            recommendation (dict): Dados da recomendação
+        """
+        self._print_header("Detalhes da Recomendação")
+
+        # Extrai dados da recomendação
+        priority = recommendation.get('priority', 'low')
+        factor = recommendation.get('factor', 'geral')
+        text = recommendation.get('text', '')
+
+        # Indicador visual de prioridade
+        if priority == 'high':
+            priority_indicator = "! ALTA PRIORIDADE"
+        elif priority == 'medium':
+            priority_indicator = "△ MÉDIA PRIORIDADE"
+        else:
+            priority_indicator = "○ BAIXA PRIORIDADE"
+
+        # Exibe detalhes formatados
+        print(f"\nPRIORIDADE: {priority_indicator}")
+        print(f"FATOR: {factor.upper()}")
+        print(f"\nRECOMENDAÇÃO:")
+        print(f"{text}")
+
+        # Adiciona descrição do fator se disponível
+        factor_descriptions = {
+            'harvester_speed': ("A velocidade da colheitadeira afeta diretamente "
+                            "a qualidade de corte e o nível de perdas. "
+                            "Velocidades muito altas causam corte irregular e "
+                            "desprendimento excessivo. Velocidades muito baixas "
+                            "reduzem a eficiência e podem aumentar danos à soqueira."),
+            'cutting_height': ("A altura de corte é crucial para minimizar perdas. "
+                            "Corte muito alto deixa tocos com açúcar. "
+                            "Corte muito baixo aumenta impurezas minerais e "
+                            "prejudica rebrota."),
+            'soil_humidity': ("A umidade do solo afeta trafegabilidade e qualidade "
+                        "de corte. Solo muito seco aumenta impurezas. "
+                        "Solo muito úmido causa compactação e prejudica "
+                        "eficiência da colheita."),
+            'temperature': ("A temperatura afeta desempenho de máquinas e "
+                        "operadores. Temperaturas muito altas aumentam perdas "
+                        "por dessecação e reduzem eficiência de colheita."),
+            'wind_speed': ("Vento forte prejudica o direcionamento preciso da "
+                        "colheita e aumenta perdas por dispersão de material.")
+        }
+
+        if factor in factor_descriptions:
+            print(f"\nDETALHES DO FATOR '{factor.upper()}':")
+            print(f"{factor_descriptions[factor]}")
+
+        # Adiciona dicas de implementação
+        if priority == 'high':
+            print("\nIMPLEMENTAÇÃO RECOMENDADA:")
+            print("• Implementar imediatamente")
+            print("• Verificar resultados após implementação")
+            print("• Documentar mudanças realizadas")
+
+        # Adiciona legenda
+        print("\nLEGENDA DE PRIORIDADE:")
+        print("! Alta | △ Média | ○ Baixa")
+
+        self._wait_keypress()
+
+
+    def _get_recommendations_summary(self, recommendations):
+        """
+        Gera um resumo estatístico das recomendações disponíveis.
+
+        Args:
+            recommendations (list): Lista de recomendações
+
+        Returns:
+            dict: Estatísticas sobre as recomendações
+        """
+        if not recommendations:
+            return None
+
+        # Contagem por prioridade
+        by_priority = {
+            'high': 0,
+            'medium': 0,
+            'low': 0
+        }
+
+        # Contagem por fator
+        by_factor = {}
+
+        # Contagem por tipo (específico vs geral)
+        specific_count = 0
+        general_count = 0
+
+        for rec in recommendations:
+            # Conta por prioridade
+            priority = rec.get('priority', 'low')
+            by_priority[priority] += 1
+
+            # Conta por fator
+            factor = rec.get('factor', 'general')
+            if factor not in by_factor:
+                by_factor[factor] = 0
+            by_factor[factor] += 1
+
+            # Específico vs geral
+            if factor == 'general':
+                general_count += 1
+            else:
+                specific_count += 1
+
+        return {
+            'total': len(recommendations),
+            'by_priority': by_priority,
+            'by_factor': by_factor,
+            'specific_count': specific_count,
+            'general_count': general_count
+        }
+
+
+    def _export_recommendations(self, recommendations):
+        """
+        Exporta recomendações para arquivo JSON.
+
+        Permite salvar as recomendações atuais em um formato que pode
+        ser importado por outros sistemas ou analisado externamente.
+
+        Args:
+            recommendations (list): Lista de recomendações
+        """
+        if not recommendations:
+            print("\nNenhuma recomendação para exportar!")
+            self._wait_keypress()
+            return
+
+        self._print_header("Exportar Recomendações")
+
+        # Adiciona explicação contextual
+        print("\nEsta função exporta as recomendações para um arquivo JSON")
+        print("que pode ser importado por outros sistemas ou analisado")
+        print("externamente.")
+
+        # Verifica se diretório existe
+        export_dir = os.path.join(self.json_manager.base_path, 'exports')
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+
+        # Gera nome do arquivo
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f"recommendations_{self.session_id}_{timestamp}.json"
+        filepath = os.path.join(export_dir, filename)
+
+        # Prepara dados para exportação
+        export_data = {
+            'session_id': self.session_id,
+            'timestamp': datetime.now().isoformat(),
+            'recommendations': recommendations,
+            'summary': self._get_recommendations_summary(recommendations)
+        }
+
+        # Salva arquivo
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(export_data, f, indent=2)
+
+            print(f"\nRecomendações exportadas com sucesso para:")
+            print(f"{filepath}")
+
+        except Exception as e:
+            print(f"\nErro ao exportar recomendações: {str(e)}")
+
+        self._wait_keypress()
+
+
+    def _filter_recommendations(self, recommendations):
+        """
+        Permite ao usuário filtrar recomendações por critérios específicos.
+
+        Args:
+            recommendations (list): Lista completa de recomendações
+
+        Returns:
+            list: Recomendações filtradas
+        """
+        self._print_header("Filtrar Recomendações")
+
+        if not recommendations:
+            print("\nNenhuma recomendação para filtrar!")
+            self._wait_keypress()
+            return []
+
+        # Adiciona explicação contextual
+        print("\nEsta tela permite filtrar as recomendações por diversos critérios")
+        print("para focar nas mais relevantes para sua situação específica.")
+
+        # Menu de filtros
+        print("\nFILTROS DISPONÍVEIS:")
+        print("1. Por prioridade")
+        print("2. Por fator relacionado")
+        print("3. Apenas recomendações específicas")
+        print("4. Apenas recomendações gerais")
+        print("5. Cancelar filtro")
+
+        choice = self._input_with_prompt("\nEscolha um filtro", "5")
+
+        filtered_recs = []
+
+        if choice == '1':
+            # Filtro por prioridade
+            print("\nPRIORIDADES:")
+            print("1. Alta prioridade")
+            print("2. Média prioridade")
+            print("3. Baixa prioridade")
+
+            priority_choice = self._input_with_prompt("\nEscolha a prioridade", "1")
+
+            priority_map = {
+                '1': 'high',
+                '2': 'medium',
+                '3': 'low'
+            }
+
+            if priority_choice in priority_map:
+                selected_priority = priority_map[priority_choice]
+                filtered_recs = [r for r in recommendations
+                            if r.get('priority') == selected_priority]
+
+        elif choice == '2':
+            # Filtro por fator
+            factors = set()
+            for rec in recommendations:
+                factor = rec.get('factor')
+                if factor and factor != 'general':
+                    factors.add(factor)
+
+            if not factors:
+                print("\nNenhum fator específico encontrado!")
+                self._wait_keypress()
+                return []
+
+            # Exibe lista de fatores
+            print("\nFATORES DISPONÍVEIS:")
+            for i, factor in enumerate(sorted(factors), 1):
+                print(f"{i}. {factor}")
+
+            factor_choice = self._input_with_prompt(
+                f"\nEscolha um fator (1-{len(factors)})",
+                "1"
+            )
+
+            try:
+                idx = int(factor_choice) - 1
+                if 0 <= idx < len(factors):
+                    selected_factor = sorted(factors)[idx]
+                    filtered_recs = [r for r in recommendations
+                                if r.get('factor') == selected_factor]
+                else:
+                    print("\nFator inválido!")
+                    self._wait_keypress()
+                    return []
+            except ValueError:
+                print("\nOpção inválida!")
+                self._wait_keypress()
+                return []
+
+        elif choice == '3':
+            # Apenas recomendações específicas
+            filtered_recs = [r for r in recommendations
+                        if r.get('factor') != 'general']
+
+        elif choice == '4':
+            # Apenas recomendações gerais
+            filtered_recs = [r for r in recommendations
+                        if r.get('factor') == 'general']
+
+        elif choice == '5':
+            # Cancelar filtro
+            return recommendations
+        else:
+            print("\nOpção inválida!")
+            self._wait_keypress()
+            return recommendations
+
+        # Informa resultado do filtro
+        print(f"\nEncontradas {len(filtered_recs)} recomendações com este filtro.")
+        self._wait_keypress()
+
+        return filtered_recs
+
 
 
     def _generate_ghg_inventory(self):
