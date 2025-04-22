@@ -1160,7 +1160,7 @@ class CommandInterface:
             sensor_data_list (list): Lista de conjuntos de dados de sensores
             analysis_data_list (list): Lista de análises correspondentes
         """
-        self._print_header("Parâmetros Críticos para Perdas na Colheita")
+        self._print_header("Visualização de Parâmetros Críticos para Perdas na Colheita")
 
         # Adiciona contexto para melhor compreensão
         print("\nEsta tela apresenta os principais parâmetros que afetam as perdas")
@@ -1414,7 +1414,7 @@ class CommandInterface:
         Args:
             sensor_data_list (list): Lista de conjuntos de dados de sensores
         """
-        self._print_header("Histórico de Sensor")
+        self._print_header("Visualização de Histórico de Sensor")
 
         # Adiciona explicação sobre a funcionalidade
         print("\nEsta tela permite acompanhar a evolução de um sensor específico")
@@ -1614,7 +1614,7 @@ class CommandInterface:
         Args:
             sensor_data_list (list): Lista de conjuntos de dados de sensores
         """
-        self._print_header("Tendências e Estatísticas")
+        self._print_header("Visualização de Tendências e Estatísticas")
 
         # Adiciona explicação sobre a funcionalidade
         print("\nESTA TELA MOSTRA:")
@@ -1693,11 +1693,888 @@ class CommandInterface:
 
     def _analyze_data(self):
         """
-        Analisa dados de perdas e emissões.
+        Analisa dados de perdas e emissões na colheita de cana-de-açúcar.
+
+        Permite ao usuário visualizar diferentes tipos de análises sobre os
+        dados coletados, incluindo relatórios de perdas, emissões de GHG e
+        tendências ao longo do tempo.
         """
-        # Implementação simplificada
-        self._print_header("Análise de Dados")
-        print("\nFuncionalidade em desenvolvimento.")
+        while True:
+            self._print_header("Análise de Dados")
+
+            if not self.session_id:
+                print("\nNenhuma sessão ativa para análise!")
+                self._wait_keypress()
+                return
+
+            # Verificar componentes necessários
+            if not all([self.json_manager, self.data_analyzer]):
+                print("\nErro: Componentes necessários não inicializados!")
+                self._wait_keypress()
+                return
+
+            # Carrega dados para análise
+            analysis_data = self._load_analysis_data()
+            sensor_data = self._load_sensor_data()
+            recommendation_data = self._load_recommendation_data()
+
+            if not analysis_data and not sensor_data:
+                print("\nNenhum dado disponível para análise!")
+                self._wait_keypress()
+                return
+
+            # Apresenta menu de análise
+            print("\nOPÇÕES DE ANÁLISE:")
+            print("1. Análise de perdas na colheita")
+            print("2. Análise de emissões de gases")
+            print("3. Análise de tendências e previsões")
+            print("4. Análise de fatores problemáticos")
+            print("5. Gerar relatório consolidado")
+            print("6. Voltar ao menu anterior")
+
+            choice = self._input_with_prompt("\nEscolha uma opção", "6")
+
+            if choice == '1':
+                self._show_harvest_loss_analysis(analysis_data)
+            elif choice == '2':
+                self._show_emission_analysis(sensor_data)
+            elif choice == '3':
+                self._show_trend_analysis(analysis_data)
+            elif choice == '4':
+                self._show_factor_analysis(analysis_data, recommendation_data)
+            elif choice == '5':
+                self._show_consolidated_report(analysis_data, sensor_data,
+                                            recommendation_data)
+            elif choice == '6':
+                return
+            else:
+                print("\nOpção inválida!")
+                self._wait_keypress()
+
+    def _load_analysis_data(self):
+        """
+        Carrega dados de análise para a sessão atual.
+
+        Returns:
+            list: Lista de registros de análise
+        """
+        analysis_data = []
+
+        # Verifica se o diretório existe
+        if not os.path.exists(self.json_manager.data_dirs['analysis']):
+            return analysis_data
+
+        # Lista arquivos de análise para esta sessão
+        for filename in os.listdir(self.json_manager.data_dirs['analysis']):
+            if filename.startswith(f"{self.session_id}-") and filename.endswith('.json'):
+                file_path = os.path.join(self.json_manager.data_dirs['analysis'], filename)
+                try:
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        if 'analysis' in data:
+                            analysis_data.append(data)
+                except json.JSONDecodeError:
+                    continue
+
+        return analysis_data
+
+    def _load_sensor_data(self):
+        """
+        Carrega dados de sensores para a sessão atual.
+
+        Returns:
+            dict: Dicionário com dados de sensores por tipo
+        """
+        sensor_data = {
+            'ch4_emission': [],
+            'nh3_emission': [],
+            'timestamps': []
+        }
+
+        # Verifica se o diretório existe
+        if not os.path.exists(self.json_manager.data_dirs['sensor_data']):
+            return sensor_data
+
+        # Lista arquivos de sensores para esta sessão
+        for filename in os.listdir(self.json_manager.data_dirs['sensor_data']):
+            if filename.startswith(f"{self.session_id}-") and filename.endswith('.json'):
+                file_path = os.path.join(
+                    self.json_manager.data_dirs['sensor_data'], filename)
+                try:
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        if 'data' in data:
+                            sensor_values = data['data']
+
+                            # Extrai dados de emissões
+                            for emission_type in ['ch4_emission', 'nh3_emission']:
+                                if emission_type in sensor_values:
+                                    reading = sensor_values[emission_type]
+                                    if isinstance(reading, dict) and 'value' in reading:
+                                        sensor_data[emission_type].append(reading['value'])
+                                    else:
+                                        sensor_data[emission_type].append(reading)
+
+                            # Armazena timestamp
+                            if any(emission_type in sensor_values
+                                for emission_type in ['ch4_emission', 'nh3_emission']):
+                                sensor_data['timestamps'].append(data['timestamp'])
+                except json.JSONDecodeError:
+                    continue
+
+        return sensor_data
+
+    def _load_recommendation_data(self):
+        """
+        Carrega dados de recomendações para a sessão atual.
+
+        Returns:
+            list: Lista de recomendações
+        """
+        recommendations = []
+
+        # Verifica se o diretório existe
+        if not os.path.exists(self.json_manager.data_dirs['recommendations']):
+            return recommendations
+
+        # Lista arquivos de recomendações para esta sessão
+        for filename in os.listdir(self.json_manager.data_dirs['recommendations']):
+            if filename.startswith(f"{self.session_id}-") and filename.endswith('.json'):
+                file_path = os.path.join(
+                    self.json_manager.data_dirs['recommendations'], filename)
+                try:
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        if ('recommendations' in data and
+                            'recommendations' in data['recommendations']):
+                            for rec in data['recommendations']['recommendations']:
+                                # Evita duplicados
+                                if rec not in recommendations:
+                                    recommendations.append(rec)
+                except json.JSONDecodeError:
+                    continue
+
+        return recommendations
+
+
+    def _show_harvest_loss_analysis(self, analysis_data):
+        """
+        Exibe análise de perdas na colheita com formatação UI/UX adequada.
+
+        Args:
+            analysis_data (list): Lista de registros de análise
+        """
+        self._print_header("Análise de Perdas na Colheita")
+
+        if not analysis_data:
+            print("\nDados insuficientes para análise!")
+            self._wait_keypress()
+            return
+
+
+        # Adiciona explicação contextual sobre a tela
+        print("\nEsta tela apresenta análises detalhadas sobre as perdas na colheita,")
+        print("incluindo estatísticas, distribuição por categorias e impacto econômico.")
+        print("As informações ajudam a identificar o nível atual de perdas e orientar")
+        print("decisões para otimização do processo de colheita.")
+
+
+        # Delega análise para o componente especializado
+        results = self.data_analyzer.analyze_harvest_losses(analysis_data)
+
+        if "error" in results:
+            print(f"\n{results['error']}")
+            self._wait_keypress()
+            return
+
+        # Exibe informações gerais
+        print(f"\nDados analisados: {results['count']} registros")
+
+        # Seção de estatísticas - formatação amigável, não tabular
+        self._print_section("ESTATÍSTICAS DE PERDAS")
+
+        # Determina indicadores visuais com base na categoria
+        loss_category = results['loss_category'].upper()
+        if loss_category == "HIGH":
+            category_indicator = "! CRÍTICO"
+        elif loss_category == "MEDIUM":
+            category_indicator = "▲ ALTO"
+        elif loss_category == "LOW":
+            category_indicator = "△ MODERADO"
+        else:
+            category_indicator = "✓ ACEITÁVEL"
+
+        print(f"Perda média.......: {results['avg_loss']:.2f}% ({category_indicator})")
+        print(f"Perda mínima......: {results['min_loss']:.2f}%")
+        print(f"Perda máxima......: {results['max_loss']:.2f}%")
+
+        # Indicador visual para tendência
+        trend = results['trend'].upper()
+        if trend == "AUMENTANDO":
+            trend_indicator = "↑ AUMENTANDO"
+        elif trend == "DIMINUINDO":
+            trend_indicator = "↓ DIMINUINDO"
+        else:
+            trend_indicator = "→ ESTÁVEL"
+
+        print(f"Tendência.........: {trend_indicator}")
+
+        # Seção de distribuição - representação visual melhorada e alinhada
+        self._print_section("DISTRIBUIÇÃO POR CATEGORIA")
+
+        total = results['count']
+        categories = results['categories']
+
+        # Tamanho máximo da barra (caracteres)
+        max_bar_size = 20
+
+        # Cria representação visual com delimitadores claros e alinhamento corrigido
+        high_pct = categories['high']/total*100
+        med_pct = categories['medium']/total*100
+        low_pct = categories['low']/total*100
+        min_pct = categories['minimal']/total*100
+
+        # Função para criar barra de progresso com delimitadores
+        def create_bar(percentage):
+            bar_size = int(percentage/100 * max_bar_size)
+            return f"[{'█' * bar_size}{' ' * (max_bar_size - bar_size)}]"
+
+        # Usando formatação com largura fixa para percentuais para garantir alinhamento
+        print(f"ALTA (≥15%).......:   {categories['high']:1d} ({high_pct:6.1f}%) "
+            f"{create_bar(high_pct)}")
+        print(f"MÉDIA (10-15%)....:   {categories['medium']:1d} ({med_pct:6.1f}%) "
+            f"{create_bar(med_pct)}")
+        print(f"BAIXA (5-10%).....:   {categories['low']:1d} ({low_pct:6.1f}%) "
+            f"{create_bar(low_pct)}")
+        print(f"MÍNIMA (<5%)......:   {categories['minimal']:1d} ({min_pct:6.1f}%) "
+            f"{create_bar(min_pct)}")
+
+        # Adiciona legenda para interpretação
+        print("\nLEGENDA:")
+        print("█ = 5% das ocorrências  |  [ ] = escala de 0% a 100%")
+
+        # Seção de impacto econômico
+        self._print_section("IMPACTO ECONÔMICO ESTIMADO")
+
+        economic = results['economic_impact']
+        # Cálculo da perda percentual
+        loss_pct = ((economic['potential_yield'] - economic['actual_yield']) /
+                economic['potential_yield'] * 100)
+
+        print(f"Produtividade potencial..: {economic['potential_yield']:.1f} ton/ha")
+        print(f"Produtividade com perdas.: {economic['actual_yield']:.1f} ton/ha")
+        print(f"Perda de produtividade...: {loss_pct:.1f}%")
+        print(f"Impacto financeiro.......: R$ {economic['loss_value']:.2f}/ha")
+
+        # Adiciona recomendação baseada na análise
+        self._print_section("RECOMENDAÇÃO")
+
+        if results['avg_loss'] >= 15:
+            print("! AÇÃO URGENTE NECESSÁRIA")
+            print("  As perdas na colheita estão acima do limite aceitável.")
+            print("  Recomenda-se revisão imediata dos parâmetros operacionais.")
+        elif results['avg_loss'] >= 10:
+            print("! ATENÇÃO")
+            print("  As perdas na colheita estão elevadas.")
+            print("  Ajuste os parâmetros conforme recomendações específicas.")
+        elif results['avg_loss'] >= 5:
+            print("△ MONITORAMENTO")
+            print("  As perdas na colheita estão em nível moderado.")
+            print("  Mantenha monitoramento contínuo dos fatores críticos.")
+        else:
+            print("✓ DESEMPENHO ADEQUADO")
+            print("  As perdas na colheita estão em nível aceitável.")
+            print("  Continue com as práticas atuais.")
+
+        print("\nLEGENDA DE STATUS:")
+        print("! CRÍTICO  | ▲ ALTO  | △ MODERADO  | ✓ ACEITÁVEL")
+
+        self._wait_keypress()
+
+    def _show_emission_analysis(self, sensor_data):
+        """
+        Exibe análise de emissões de gases com formatação UI/UX adequada.
+
+        Args:
+            sensor_data (dict): Dicionário com dados de sensores
+        """
+        self._print_header("Análise de Emissões de Gases")
+
+        if not sensor_data['timestamps']:
+            print("\nNenhum dado de emissão encontrado!")
+            self._wait_keypress()
+            return
+
+        # Adiciona explicação contextual sobre a tela
+        print("\nEsta tela apresenta análise detalhada das emissões de gases durante")
+        print("o processo de colheita, com foco em CH₄ (metano) e NH₃ (amônia).")
+        print("As informações incluem níveis médios, mínimos e máximos, comparação")
+        print("com valores de referência e impacto ambiental estimado.")
+        print("\nDICA: Valores elevados de emissões podem indicar ineficiências no")
+        print("processo ou ajustes necessários nos parâmetros operacionais.")
+
+        # Delega análise para o componente especializado
+        results = self.data_analyzer.analyze_emissions(sensor_data)
+
+        print(f"\nDados analisados: {len(sensor_data['timestamps'])} registros")
+        print(f"Período: {sensor_data['timestamps'][0][:16]} a "
+            f"{sensor_data['timestamps'][-1][:16]}")
+
+        # Seção de emissões de metano
+        if 'ch4' in results:
+            self._print_section("EMISSÕES DE METANO (CH₄)")
+
+            ch4 = results['ch4']
+
+            # Status visual
+            if ch4['status'] == "alta":
+                status_indicator = "! ELEVADO"
+            elif ch4['status'] == "média":
+                status_indicator = "▲ MODERADO"
+            else:
+                status_indicator = "✓ ACEITÁVEL"
+
+            print(f"Emissão média.....: {ch4['avg']:.2f} kg/h ({status_indicator})")
+            print(f"Emissão mínima....: {ch4['min']:.2f} kg/h")
+            print(f"Emissão máxima....: {ch4['max']:.2f} kg/h")
+            print(f"Equivalente em CO₂.: {ch4['co2e']:.2f} kg CO₂e/h")
+
+            # Visualização com escala
+            reference = 10.0  # Valor de referência para escala
+            percentage = min(100, ch4['avg'] / reference * 100)
+
+            bar_size = 20
+            filled = int(percentage / 100 * bar_size)
+
+            print("\nEscala de emissão:")
+            print(f"0{'-'*9}|{'-'*10}10 kg/h")
+            print(f"[{'█' * filled}{' ' * (bar_size - filled)}] {ch4['avg']:.2f} kg/h")
+
+        # Seção de emissões de amônia
+        if 'nh3' in results:
+            self._print_section("EMISSÕES DE AMÔNIA (NH₃)")
+
+            nh3 = results['nh3']
+
+            # Status visual
+            if nh3['status'] == "alta":
+                status_indicator = "! ELEVADO"
+            elif nh3['status'] == "média":
+                status_indicator = "▲ MODERADO"
+            else:
+                status_indicator = "✓ ACEITÁVEL"
+
+            print(f"Emissão média.....: {nh3['avg']:.2f} kg/h ({status_indicator})")
+            print(f"Emissão mínima....: {nh3['min']:.2f} kg/h")
+            print(f"Emissão máxima....: {nh3['max']:.2f} kg/h")
+
+            # Visualização com escala
+            reference = 8.0  # Valor de referência para escala
+            percentage = min(100, nh3['avg'] / reference * 100)
+
+            bar_size = 20
+            filled = int(percentage / 100 * bar_size)
+
+            print("\nEscala de emissão:")
+            print(f"0{'-'*9}|{'-'*9}8 kg/h")
+            print(f"[{'█' * filled}{' ' * (bar_size - filled)}] {nh3['avg']:.2f} kg/h")
+
+        # Seção de impacto ambiental
+        self._print_section("IMPACTO AMBIENTAL")
+        print("• As emissões de metano (CH₄) contribuem diretamente para o efeito")
+        print("  estufa, com potencial de aquecimento global 28 vezes maior que o CO₂.")
+        print("• As emissões de amônia (NH₃) causam impactos indiretos como")
+        print("  acidificação do solo e eutrofização de corpos d'água.")
+
+        # Seção de recomendações
+        self._print_section("RECOMENDAÇÕES PARA REDUÇÃO DE EMISSÕES")
+
+        # Determina quais recomendações exibir com base nos resultados
+        recommendations = []
+
+        if 'ch4' in results and results['ch4']['status'] != "aceitável":
+            recommendations.append("• Ajustar parâmetros operacionais da colheitadeira")
+            recommendations.append("• Verificar regulagem dos sistemas de combustão")
+
+        if 'nh3' in results and results['nh3']['status'] != "aceitável":
+            recommendations.append("• Revisar práticas de manejo do solo")
+            recommendations.append("• Otimizar aplicação de fertilizantes nitrogenados")
+
+        if not recommendations:
+            recommendations.append("• Manter parâmetros atuais de operação")
+            recommendations.append("• Continuar com monitoramento regular")
+
+        for rec in recommendations:
+            print(rec)
+
+        print("\nLEGENDA DE STATUS:")
+        print("! ELEVADO  | ▲ MODERADO  | ✓ ACEITÁVEL")
+
+        self._wait_keypress()
+
+
+    def _show_trend_analysis(self, analysis_data):
+        """
+        Exibe análise de tendências com formatação UI/UX adequada.
+
+        Args:
+            analysis_data (list): Lista de registros de análise
+        """
+        self._print_header("Análise de Tendências e Previsões")
+
+        if not analysis_data or len(analysis_data) < 3:
+            print("\nDados insuficientes para análise de tendências!")
+            print("São necessários pelo menos 3 registros para identificar padrões.")
+            self._wait_keypress()
+            return
+
+        # Adiciona explicação contextual sobre a tela
+        print("\nEsta tela mostra a evolução das perdas ao longo do tempo,")
+        print("identificando tendências, padrões sazonais e projeções futuras.")
+        print("A visualização temporal ajuda a avaliar a eficácia de ajustes")
+        print("realizados e prever comportamentos futuros com base em dados históricos.")
+
+        print("\nLEGENDA DE TENDÊNCIAS:")
+        print("• ↑ AUMENTANDO: Valores crescentes ao longo do tempo")
+        print("• ↓ DIMINUINDO: Valores decrescentes ao longo do tempo")
+        print("• → ESTÁVEL: Valores sem variação significativa")
+
+        # Delega análise para o componente especializado
+        results = self.data_analyzer.analyze_trends(analysis_data)
+
+        if "error" in results:
+            print(f"\n{results['error']}")
+            self._wait_keypress()
+            return
+
+        print(f"\nDados analisados: {len(analysis_data)} registros")
+        if 'timestamps' in results and results['timestamps']:
+            print(f"Período: {results['timestamps'][0][:16]} a "
+                f"{results['timestamps'][-1][:16]}")
+
+        # Seção de tendência de perdas
+        self._print_section("TENDÊNCIA DE PERDAS NA COLHEITA")
+
+        # Exibe gráfico de tendência simplificado
+        if 'loss_values' in results and results['loss_values']:
+            samples = min(10, len(results['loss_values']))
+            values = results['loss_values'][-samples:]
+
+            # Determina escala do gráfico
+            max_val = max(values)
+            min_val = min(values)
+            range_val = max(1, max_val - min_val)
+
+            # Altura do gráfico
+            height = 5
+
+            print("Evolução recente das perdas:")
+            print(f"    {max_val:.1f}% ┬")
+
+            # Desenha o gráfico
+            for h in range(height, 0, -1):
+                threshold = min_val + (range_val / height) * h
+                line = "         │"
+                for val in values:
+                    if val >= threshold:
+                        line += "█"
+                    else:
+                        line += " "
+                print(line)
+
+            bottom_line = f"    {min_val:.1f}% ┴" + "─" * samples
+            print(bottom_line)
+
+            # Exibe direção da tendência com indicador visual
+            trend_direction = results.get('trend_direction', 'stable')
+            if trend_direction == "increasing":
+                trend_text = "↑ AUMENTANDO"
+            elif trend_direction == "decreasing":
+                trend_text = "↓ DIMINUINDO"
+            else:
+                trend_text = "→ ESTÁVEL"
+
+            print(f"\nTendência geral: {trend_text}")
+
+            # Verifica se há previsão disponível e se não é None
+            if 'prediction' in results and results['prediction'] is not None:
+                prediction = results['prediction']
+                print(f"Previsão para próximos ciclos: {prediction:.2f}%")
+
+                if prediction > values[-1]:
+                    print("! ALERTA: Tendência de aumento nas perdas")
+                else:
+                    print("✓ Tendência de redução nas perdas")
+
+        # Seção de fatores recorrentes
+        if 'common_factors' in results and results['common_factors']:
+            self._print_section("FATORES PROBLEMÁTICOS RECORRENTES")
+
+            for i, factor in enumerate(results['common_factors']):
+                print(f"#{i+1}: {factor['factor'].upper()}")
+                print(f"    • Frequência: {factor['frequency']*100:.1f}% das análises")
+                print(f"    • Severidade média: {factor['severity']:.2f}")
+
+                # Determina direção predominante
+                direction = factor.get('direction', '')
+                if direction == "above":
+                    dir_text = "acima do ideal"
+                elif direction == "below":
+                    dir_text = "abaixo do ideal"
+                else:
+                    dir_text = "variável"
+
+                print(f"    • Direção: {dir_text}")
+
+        # Seção de recomendações baseadas em tendências
+        self._print_section("AÇÕES RECOMENDADAS")
+
+        trend_direction = results.get('trend_direction', 'stable')
+        if trend_direction == "increasing":
+            print("! ATENÇÃO - TENDÊNCIA DE AUMENTO NAS PERDAS")
+            print("• Revisar urgentemente os parâmetros operacionais")
+            print("• Focar nos fatores problemáticos recorrentes identificados")
+            print("• Implementar monitoramento mais frequente")
+        elif trend_direction == "decreasing":
+            print("✓ TENDÊNCIA POSITIVA - REDUÇÃO NAS PERDAS")
+            print("• Manter os ajustes recentes nos parâmetros")
+            print("• Documentar as práticas bem-sucedidas")
+            print("• Continuar com o monitoramento regular")
+        else:
+            print("→ TENDÊNCIA ESTÁVEL")
+            print("• Manter vigilância sobre fatores críticos identificados")
+            print("• Avaliar oportunidades para otimização adicional")
+
+        print("\nLEGENDA DE TENDÊNCIAS:")
+        print("↑ AUMENTANDO | ↓ DIMINUINDO | → ESTÁVEL")
+
+        self._wait_keypress()
+
+    def _show_factor_analysis(self, analysis_data, recommendation_data):
+        """
+        Exibe análise de fatores problemáticos com formatação UI/UX adequada.
+
+        Args:
+            analysis_data (list): Lista de registros de análise
+            recommendation_data (list): Lista de recomendações
+        """
+        self._print_header("Análise de Fatores Problemáticos")
+
+        if not analysis_data:
+            print("\nDados insuficientes para análise de fatores!")
+            self._wait_keypress()
+            return
+
+        # Adiciona explicação contextual sobre a tela
+        print("\nEsta tela identifica e classifica os fatores que mais contribuem")
+        print("para as perdas na colheita de cana-de-açúcar, organizados por")
+        print("frequência, severidade e impacto. Para cada fator crítico, são")
+        print("apresentadas recomendações específicas para mitigação.")
+
+        print("\nLEGENDA DE SÍMBOLOS:")
+        print("• ! Alta prioridade | △ Média prioridade | ○ Baixa prioridade")
+        print("• ↑ ACIMA do ideal | ↓ ABAIXO do ideal | ↕ VARIÁVEL")
+
+        # Delega análise para o componente especializado
+        results = self.data_analyzer.analyze_factors(analysis_data)
+
+        if "error" in results:
+            print(f"\n{results['error']}")
+            self._wait_keypress()
+            return
+
+        print(f"\nDados analisados: {results['total_analyses']} registros")
+        print(f"Fatores problemáticos identificados: {results['factors_count']}")
+
+        # Ordenar fatores por impacto
+        sorted_factors = results['sorted_factors']
+
+        # Seção de fatores críticos
+        self._print_section("FATORES CRÍTICOS IDENTIFICADOS")
+
+        if not sorted_factors:
+            print("Nenhum fator problemático identificado nas análises.")
+        else:
+            # Exibe detalhes dos fatores mais críticos (top 3 ou menos)
+            for i, factor_name in enumerate(sorted_factors[:3]):
+                if i > 0:
+                    print("")  # Linha em branco entre fatores
+
+                factor = results['factors'][factor_name]
+
+                # Formatar nome do fator
+                print(f"#{i+1}: {factor_name.upper()}")
+
+                # Dados estatísticos com verificação de existência das chaves
+                frequency = factor.get('frequency', 0) * 100
+                print(f"• Ocorrências......: {factor.get('count', 0)} ({frequency:.1f}% das análises)")
+                print(f"• Severidade média.: {factor.get('avg_severity', 0):.2f}")
+                print(f"• Valor médio......: {factor.get('avg_value', 0):.2f}")
+
+                # Determina direção predominante com indicador visual
+                direction = factor['direction']
+                if direction == "above":
+                    dir_text = "↑ ACIMA do ideal"
+                elif direction == "below":
+                    dir_text = "↓ ABAIXO do ideal"
+                else:
+                    dir_text = "↕ VARIÁVEL"
+
+                print(f"• Direção..........: {dir_text}")
+
+                # Exibe faixa ideal se disponível
+                if factor['optimal_range']:
+                    opt_min, opt_max = factor['optimal_range']
+                    print(f"• Faixa ideal......: {opt_min} - {opt_max}")
+
+                # Visualização de impacto
+                impact = factor['impact'] * 100
+                impact_bar = int(impact / 5)  # Escala de 0-20 caracteres
+
+                print(f"• Impacto..........: {impact:.1f}%")
+                print(f"  [{'█' * impact_bar}{' ' * (20 - impact_bar)}]")
+
+        # Seção de recomendações associadas
+        if recommendation_data:
+            self._print_section("RECOMENDAÇÕES RELACIONADAS")
+
+            # Filtra recomendações relevantes para os fatores críticos
+            relevant_recs = []
+            for rec in recommendation_data:
+                if 'factor' in rec and rec['factor'] in sorted_factors[:3]:
+                    relevant_recs.append(rec)
+
+            if not relevant_recs:
+                print("Nenhuma recomendação específica encontrada para os fatores críticos.")
+            else:
+                # Agrupa recomendações por fator
+                recs_by_factor = {}
+                for rec in relevant_recs:
+                    factor = rec['factor']
+                    if factor not in recs_by_factor:
+                        recs_by_factor[factor] = []
+                    recs_by_factor[factor].append(rec)
+
+                # Exibe recomendações para cada fator
+                for factor in sorted_factors[:3]:
+                    if factor in recs_by_factor:
+                        print(f"{factor.upper()}:")
+                        for rec in recs_by_factor[factor][:2]:  # Top 2 recomendações
+                            priority = rec.get('priority', '').upper()
+                            if priority == "HIGH":
+                                priority_mark = "!"
+                            elif priority == "MEDIUM":
+                                priority_mark = "△"
+                            else:
+                                priority_mark = "○"
+
+                            print(f"• [{priority_mark}] {rec.get('text', '')}")
+
+        # Seção de ações sugeridas
+        self._print_section("AÇÕES SUGERIDAS")
+
+        if sorted_factors:
+            top_factor = sorted_factors[0]
+            factor_data = results['factors'][top_factor]
+
+            print(f"FOCO PRINCIPAL: {top_factor.upper()}")
+
+            if factor_data['direction'] == "above":
+                print(f"• Reduzir {top_factor} para a faixa ideal de "
+                    f"{factor_data['optimal_range'][0]}-{factor_data['optimal_range'][1]}")
+            elif factor_data['direction'] == "below":
+                print(f"• Aumentar {top_factor} para a faixa ideal de "
+                    f"{factor_data['optimal_range'][0]}-{factor_data['optimal_range'][1]}")
+
+            print("• Implementar monitoramento contínuo deste parâmetro")
+            print("• Priorizar as recomendações específicas para este fator")
+        else:
+            print("• Manter os parâmetros atuais de operação")
+            print("• Continuar com monitoramento regular")
+
+        print("\nLEGENDA DE DIREÇÃO:")
+        print("↑ ACIMA do ideal | ↓ ABAIXO do ideal | ↕ VARIÁVEL")
+        print("\nLEGENDA DE PRIORIDADE:")
+        print("! Alta | △ Média | ○ Baixa")
+
+        self._wait_keypress()
+
+    def _show_consolidated_report(self, analysis_data, sensor_data, recommendation_data):
+        """
+        Exibe relatório consolidado com formatação UI/UX adequada.
+
+        Args:
+            analysis_data (list): Lista de registros de análise
+            sensor_data (dict): Dicionário com dados de sensores
+            recommendation_data (list): Lista de recomendações
+        """
+        self._print_header("Relatório Consolidado")
+
+        if not analysis_data and not sensor_data:
+            print("\nDados insuficientes para gerar relatório!")
+            self._wait_keypress()
+            return
+
+        # Adiciona explicação contextual sobre a tela
+        print("\nEste relatório integra os resultados de todas as análises,")
+        print("fornecendo uma visão completa sobre perdas, emissões, fatores")
+        print("críticos e recomendações prioritárias. O documento consolida as")
+        print("principais informações em um formato conciso para facilitar a")
+        print("tomada de decisões e planejamento de ações corretivas.")
+
+        print("\nO relatório está organizado em cinco seções principais:")
+        print("1. Resumo de perdas | 2. Emissões | 3. Fatores críticos")
+        print("4. Recomendações    | 5. Conclusões e próximos passos")
+
+        # Processa análises necessárias
+        loss_analysis = {}
+        emission_analysis = {}
+        factor_analysis = {}
+
+        if analysis_data:
+            loss_analysis = self.data_analyzer.analyze_harvest_losses(analysis_data)
+            factor_analysis = self.data_analyzer.analyze_factors(analysis_data)
+
+        if sensor_data and sensor_data['timestamps']:
+            emission_analysis = self.data_analyzer.analyze_emissions(sensor_data)
+
+        # Delega geração do relatório consolidado
+        report = self.data_analyzer.generate_consolidated_report(
+            loss_analysis, emission_analysis, factor_analysis, recommendation_data
+        )
+
+        # Título e informações gerais
+        print("\n" + "=" * 78)
+        print(" RELATÓRIO CONSOLIDADO: PERDAS E EMISSÕES NA COLHEITA DE CANA-DE-AÇÚCAR ")
+        print("=" * 78)
+
+        # Informações da sessão
+        print(f"\nSESSÃO: {self.session_id}")
+        print(f"DATA: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+        if analysis_data:
+            print(f"PERÍODO ANALISADO: {analysis_data[0]['timestamp'][:16]} a "
+                f"{analysis_data[-1]['timestamp'][:16]}")
+
+        total_records = len(analysis_data) if analysis_data else 0
+        print(f"REGISTROS ANALISADOS: {total_records}")
+
+        # Resumo de perdas
+        if loss_analysis and 'avg_loss' in loss_analysis:
+            self._print_section("1. RESUMO DE PERDAS NA COLHEITA")
+
+            avg_loss = loss_analysis['avg_loss']
+            category = loss_analysis['loss_category'].upper()
+
+            # Indicador visual de status
+            if category == "HIGH":
+                status_indicator = "! CRÍTICO"
+            elif category == "MEDIUM":
+                status_indicator = "▲ ALTO"
+            elif category == "LOW":
+                status_indicator = "△ MODERADO"
+            else:
+                status_indicator = "✓ ACEITÁVEL"
+
+            print(f"• Perda média.......: {avg_loss:.2f}% ({status_indicator})")
+
+            # Visualização com barra
+            print(f"  [{'█' * int(avg_loss)}{'·' * (20 - int(avg_loss))}] "
+                f"(escala: 0-20%)")
+
+            # Impacto econômico
+            if 'economic_impact' in loss_analysis:
+                economic = loss_analysis['economic_impact']
+                print(f"• Impacto econômico.: R$ {economic['loss_value']:.2f}/ha")
+
+        # Resumo de emissões
+        if emission_analysis:
+            self._print_section("2. RESUMO DE EMISSÕES DE GASES")
+
+            if 'ch4' in emission_analysis:
+                ch4 = emission_analysis['ch4']
+                ch4_status = ch4['status'].upper()
+
+                if ch4_status == "ALTA":
+                    ch4_indicator = "! ELEVADO"
+                elif ch4_status == "MÉDIA":
+                    ch4_indicator = "▲ MODERADO"
+                else:
+                    ch4_indicator = "✓ ACEITÁVEL"
+
+                print(f"• Emissão CH₄......: {ch4['avg']:.2f} kg/h ({ch4_indicator})")
+                print(f"• Equivalente CO₂e.: {ch4['co2e']:.2f} kg CO₂e/h")
+
+            if 'nh3' in emission_analysis:
+                nh3 = emission_analysis['nh3']
+                nh3_status = nh3['status'].upper()
+
+                if nh3_status == "ALTA":
+                    nh3_indicator = "! ELEVADO"
+                elif nh3_status == "MÉDIA":
+                    nh3_indicator = "▲ MODERADO"
+                else:
+                    nh3_indicator = "✓ ACEITÁVEL"
+
+                print(f"• Emissão NH₃......: {nh3['avg']:.2f} kg/h ({nh3_indicator})")
+
+        # Fatores críticos identificados
+        if 'top_factors' in report and report['top_factors']:
+            self._print_section("3. FATORES CRÍTICOS IDENTIFICADOS")
+
+            for i, factor in enumerate(report['top_factors']):
+                # Indicador visual de direção
+                if factor['direction'] == "above":
+                    dir_text = "↑ ACIMA"
+                elif factor['direction'] == "below":
+                    dir_text = "↓ ABAIXO"
+                else:
+                    dir_text = "↕ VARIÁVEL"
+
+                impact = factor['impact'] * 100
+
+                print(f"{i+1}. {factor['name'].upper()}")
+                print(f"   • Frequência: {factor['frequency']*100:.1f}% das análises")
+                print(f"   • Direção: {dir_text} do ideal")
+                print(f"   • Impacto: {impact:.1f}%")
+
+        # Recomendações principais
+        if 'priority_recommendations' in report and report['priority_recommendations']:
+            self._print_section("4. RECOMENDAÇÕES PRIORITÁRIAS")
+
+            for i, rec in enumerate(report['priority_recommendations']):
+                priority = rec.get('priority', '').upper()
+                if priority == "HIGH":
+                    priority_mark = "!"
+                elif priority == "MEDIUM":
+                    priority_mark = "△"
+                else:
+                    priority_mark = "○"
+
+                factor = rec.get('factor', 'geral')
+                text = rec.get('text', '')
+
+                print(f"{i+1}. [{priority_mark} ] {text}")
+                if factor != 'general':
+                    print(f"   Fator relacionado: {factor}")
+
+        # Conclusão e próximos passos
+        if 'conclusion' in report:
+            self._print_section("5. CONCLUSÃO E PRÓXIMOS PASSOS")
+
+            print(report['conclusion'])
+            print("")
+
+            if 'next_steps' in report:
+                for i, step in enumerate(report['next_steps']):
+                    print(f"{i+1}. {step}")
+
+        # Legenda
+        print("\nLEGENDA DE INDICADORES:")
+        print("! CRÍTICO/ELEVADO | ▲ ALTO/MODERADO    | △ MÉDIO    | ✓ ACEITÁVEL")
+        print("↑ ACIMA do ideal  | ↓ ABAIXO do ideal  | ↕ VARIÁVEL | → ESTÁVEL")
+        print("! Alta prioridade | △ Média prioridade | ○ Baixa prioridade")
+
         self._wait_keypress()
 
 
