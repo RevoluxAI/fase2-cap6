@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 4. Interface de Linha de Comando
-# src/ui/command_interface.py
 import os
 import time
+import json
 from datetime import datetime, timedelta
 
 class CommandInterface:
@@ -40,6 +39,58 @@ class CommandInterface:
         self.json_manager = None
         self.oracle_connector = None
 
+
+    def _format_status(self, status):
+        """
+        Formata status de forma consistente para exibição.
+        """
+        if status == "IDEAL":
+            return "✓ IDEAL"
+        elif status == "ALTO":
+            return "▲ ALTO"
+        elif status == "BAIXO":
+            return "▼ BAIXO"
+        elif status == "CRÍTICO":
+            return "! CRÍTICO"
+        elif status == "ADEQUADO":
+            return "○ ADEQUADO"
+        elif status == "LIMITANTE":
+            return "△ LIMITANTE"
+        return status
+
+
+    def _show_context_help(self, context):
+        """
+        Exibe ajuda contextual para a tela atual.
+        """
+        if context == "main":
+            self._print_header("Ajuda - Visualização de Dados")
+            print("\nEsta tela permite acessar diferentes visualizações dos dados")
+            print("coletados pelos sensores durante a simulação de colheita.")
+            print("\nCATEGORIAS DE SENSORES:")
+            print("• Sensores Operacionais: Monitoram a operação da colheitadeira")
+            print("  Exemplos: velocidade, altura de corte")
+            print("• Sensores Ambientais: Monitoram condições do ambiente")
+            print("  Exemplos: temperatura, umidade, vento")
+            print("• Sensores de Emissão: Monitoram emissões de GEE")
+            print("  Exemplos: emissão de CH4, NH3")
+            print("\nOPÇÕES DISPONÍVEIS:")
+            print("1. Visualizar conjunto: Detalhes de um momento específico")
+            print("2. Histórico: Evolução de um sensor ao longo do tempo")
+            print("3. Tendências: Estatísticas e comportamentos gerais")
+            print("4. Parâmetros críticos: Foco nos fatores que mais afetam perdas")
+
+        elif context == "specific_data":
+            # Ajuda específica para visualização de conjunto
+            pass
+
+        # Outras ajudas contextuais...
+
+        self._wait_keypress()
+
+
+
+
     def set_components(self, components):
         """
         Define componentes do sistema.
@@ -58,11 +109,13 @@ class CommandInterface:
         self.json_manager = components.get('json_manager')
         self.oracle_connector = components.get('oracle_connector')
 
+
     def _clear_screen(self):
         """
         Limpa a tela do terminal.
         """
         os.system('cls' if os.name == 'nt' else 'clear')
+
 
     def _print_header(self, subtitle=None):
         """
@@ -81,6 +134,7 @@ class CommandInterface:
             print(f"Sessão ativa: {self.session_id}")
             print('-' * self.width)
 
+
     def _print_section(self, title):
         """
         Imprime título de seção.
@@ -91,6 +145,7 @@ class CommandInterface:
         print('\n' + '-' * self.width)
         print(title.center(self.width))
         print('-' * self.width)
+
 
     def _input_with_prompt(self, prompt, default=None):
         """
@@ -115,11 +170,13 @@ class CommandInterface:
 
         return user_input
 
+
     def _wait_keypress(self):
         """
         Aguarda pressionar tecla para continuar.
         """
         input("\nPressione ENTER para continuar...")
+
 
     def start(self):
         """
@@ -132,6 +189,7 @@ class CommandInterface:
                 self._show_main_menu()
             else:
                 self._show_session_menu()
+
 
     def _show_main_menu(self):
         """
@@ -156,6 +214,7 @@ class CommandInterface:
         else:
             print("Opção inválida!")
             time.sleep(1)
+
 
     def _show_session_menu(self):
         """
@@ -193,6 +252,7 @@ class CommandInterface:
             print("Opção inválida!")
             time.sleep(1)
 
+
     def _show_config_menu(self):
         """
         Exibe menu de configurações.
@@ -218,6 +278,7 @@ class CommandInterface:
         else:
             print("Opção inválida!")
             time.sleep(1)
+
 
     def _start_new_session(self):
         """
@@ -251,6 +312,7 @@ class CommandInterface:
 
         print("\nSessão inicializada com sucesso!")
         self._wait_keypress()
+
 
     def _load_session(self):
         """
@@ -302,6 +364,7 @@ class CommandInterface:
         except ValueError:
             print("\nOpção inválida!")
             self._wait_keypress()
+
 
     def _configure_simulation(self):
         """
@@ -361,6 +424,7 @@ class CommandInterface:
             print("\nErro: Não foi possível salvar a configuração!")
 
         self._wait_keypress()
+
 
     def _configure_ghg_boundaries(self):
         """
@@ -428,6 +492,7 @@ class CommandInterface:
 
         self._wait_keypress()
 
+
     def _configure_oracle(self):
         """
         Configura conexão com Oracle.
@@ -468,6 +533,7 @@ class CommandInterface:
             print("\nErro: Não foi possível salvar a configuração!")
 
         self._wait_keypress()
+
 
     def _run_harvest_simulation(self):
         """
@@ -552,14 +618,1047 @@ class CommandInterface:
 
         self._wait_keypress()
 
+
     def _view_sensor_data(self):
         """
-        Visualiza dados de sensores.
+        Visualiza dados de sensores coletados durante a simulação.
+
+        Apresenta visão especializada para monitoramento de perdas na colheita
+        mecanizada de cana-de-açúcar, com categorização por tipo de sensor
+        e destaque para parâmetros críticos.
         """
-        # Implementação simplificada
-        self._print_header("Visualização de Dados")
-        print("\nFuncionalidade em desenvolvimento.")
+        self._print_header("Visualização de Dados de Sensores")
+
+        if not self.session_id:
+            print("\nNenhuma sessão ativa para visualizar dados!")
+            self._wait_keypress()
+            return
+
+        # Verifica se existem dados JSON para a sessão
+        if not self.json_manager:
+            print("\nErro: Gerenciador JSON não inicializado!")
+            self._wait_keypress()
+            return
+
+        # Lista arquivos de dados de sensores para esta sessão
+        sensor_files = []
+        for filename in os.listdir(self.json_manager.data_dirs['sensor_data']):
+            if filename.startswith(f"{self.session_id}-") and filename.endswith('.json'):
+                sensor_files.append(filename)
+
+        if not sensor_files:
+            print("\nNenhum dado de sensor encontrado para esta sessão!")
+            self._wait_keypress()
+            return
+
+        # Ordenar arquivos por timestamp (do mais recente para o mais antigo)
+        sensor_files.sort(reverse=True)
+
+        # Carrega dados para análise
+        max_display = 5  # Número máximo de conjuntos de dados para exibir inicialmente
+        sensor_data_list = []
+
+        for i, filename in enumerate(sensor_files[:max_display]):
+            file_path = os.path.join(self.json_manager.data_dirs['sensor_data'], filename)
+            with open(file_path, 'r') as f:
+                try:
+                    data = json.load(f)
+                    sensor_data_list.append(data)
+                except json.JSONDecodeError:
+                    print(f"Aviso: Arquivo {filename} corrompido.")
+
+        # Carrega dados de análise para contexto
+        analysis_files = []
+        for filename in os.listdir(self.json_manager.data_dirs['analysis']):
+            if filename.startswith(f"{self.session_id}-") and filename.endswith('.json'):
+                analysis_files.append(filename)
+
+        analysis_data_list = []
+        if analysis_files:
+            analysis_files.sort(reverse=True)
+            for i, filename in enumerate(analysis_files[:max_display]):
+                file_path = os.path.join(self.json_manager.data_dirs['analysis'], filename)
+                with open(file_path, 'r') as f:
+                    try:
+                        data = json.load(f)
+                        analysis_data_list.append(data)
+                    except json.JSONDecodeError:
+                        pass
+
+        # Menu de visualização
+        while True:
+            self._print_header("Visualização de Dados de Sensores")
+
+            print(f"\nDados disponíveis: {len(sensor_files)} conjuntos de leituras")
+            print(f"Exibindo: {len(sensor_data_list)} conjuntos mais recentes\n")
+
+            # Legenda para categorias
+            print("LEGENDA:")
+            print("• Op: Sensores Operacionais (colheitadeira, altura de corte)")
+            print("• Amb: Sensores Ambientais (temperatura, umidade, vento)")
+            print("• Em: Sensores de Emissão (CH4, NH3)\n")
+
+            # Se não houver dados para exibir, retorna
+            if not sensor_data_list:
+                print("Nenhum dado para exibir!")
+                self._wait_keypress()
+                return
+
+            # Exibe resumo categorizado dos conjuntos de dados
+            print("ID | Timestamp           | Perdas    | Sensores por categoria")
+            print("-" * 75)
+
+
+            for i, data in enumerate(sensor_data_list):
+                timestamp = data.get('timestamp', 'desconhecido')
+                sensors = data.get('data', {})
+
+                # Busca dado de análise correspondente para mostrar perda estimada
+                loss_estimate = "N/A"
+                for analysis in analysis_data_list:
+                    if analysis.get('analysis', {}).get('timestamp') == timestamp:
+                        loss_estimate = f"{analysis.get('analysis', {}).get('loss_estimate', 'N/A'):.1f}%"
+                        break
+
+                # Categoriza sensores
+                operational_sensors = []
+                environmental_sensors = []
+                emission_sensors = []
+
+                for sensor_name in sensors:
+                    if sensor_name in ['harvester_speed', 'cutting_height']:
+                        operational_sensors.append(sensor_name)
+                    elif sensor_name in ['temperature', 'humidity', 'soil_humidity',
+                                    'wind_speed', 'precipitation', 'is_raining']:
+                        environmental_sensors.append(sensor_name)
+                    elif 'emission' in sensor_name or sensor_name in ['ch4_emission',
+                                                                    'nh3_emission']:
+                        emission_sensors.append(sensor_name)
+
+                # Resume contagens por categoria
+                categories = (
+                    f"Op: {len(operational_sensors)}, "
+                    f"Amb: {len(environmental_sensors)}, "
+                    f"Em: {len(emission_sensors)}"
+                )
+
+                print(f"{i+1:2d} | {timestamp[:19]} | {loss_estimate:<9} | {categories}")
+
+            print("\nOPÇÕES DE VISUALIZAÇÃO:")
+            print("1. Visualizar conjunto de dados específico")
+            print("2. Visualizar histórico de um sensor específico")
+            print("3. Visualizar tendências e estatísticas")
+            print("4. Visualizar parâmetros críticos para perdas na colheita")
+            print("\nOPÇÕES DE NAVEGAÇÃO:")
+            print("5. Carregar mais dados")
+            print("6. Ajuda contextual")
+            print("7. Voltar ao menu anterior")
+
+            choice = self._input_with_prompt("\nEscolha uma opção", "7")
+
+            if choice == '1':
+                self._view_specific_data_set(sensor_data_list, analysis_data_list)
+            elif choice == '2':
+                self._view_sensor_history(sensor_data_list)
+            elif choice == '3':
+                self._view_sensor_trends(sensor_data_list)
+            elif choice == '4':
+                self._view_critical_parameters(sensor_data_list, analysis_data_list)
+            elif choice == '5':
+                # Carrega mais dados se disponíveis
+                next_batch = min(len(sensor_files) - len(sensor_data_list), max_display)
+
+                if next_batch <= 0:
+                    print("\nTodos os dados já foram carregados!")
+                    self._wait_keypress()
+                    continue
+
+                start_idx = len(sensor_data_list)
+                end_idx = start_idx + next_batch
+
+                for filename in sensor_files[start_idx:end_idx]:
+                    file_path = os.path.join(
+                        self.json_manager.data_dirs['sensor_data'],
+                        filename
+                    )
+                    with open(file_path, 'r') as f:
+                        try:
+                            data = json.load(f)
+                            sensor_data_list.append(data)
+                        except json.JSONDecodeError:
+                            print(f"Aviso: Arquivo {filename} corrompido.")
+
+                print(f"\nCarregados {next_batch} conjuntos adicionais de dados.")
+                self._wait_keypress()
+            elif choice == '6':
+                self._show_context_help("main")
+            elif choice == '7':
+                # Volta ao menu anterior
+                break
+            else:
+                print("\nOpção inválida!")
+                self._wait_keypress()
+
+
+    def _view_specific_data_set(self, sensor_data_list, analysis_data_list):
+        """
+        Visualiza um conjunto específico de dados de sensores com contexto
+        agronômico e informações sobre perdas.
+
+        Args:
+            sensor_data_list (list): Lista de conjuntos de dados de sensores
+            analysis_data_list (list): Lista de análises correspondentes
+        """
+        self._print_header("Visualização de Conjunto de Dados")
+
+        # Adiciona instruções claras para o usuário
+        print("\nEsta tela permite analisar detalhadamente um conjunto de leituras.")
+        print("Os dados são organizados por categoria para facilitar a interpretação.")
+
+        # Apresenta resumo dos conjuntos disponíveis
+        print("\nResumo dos conjuntos disponíveis:")
+        print("-" * 75)
+        print("ID | Timestamp           | Parâmetros Operacionais       | "
+            "Condições Ambientais")
+        print("-" * 75)
+
+
+        for i, data in enumerate(sensor_data_list):
+            timestamp = data.get('timestamp', 'desconhecido')[:19]
+            sensors = data.get('data', {})
+
+            # Extrai valores operacionais relevantes
+            harvester_speed = self._get_sensor_value(sensors, 'harvester_speed')
+            cutting_height = self._get_sensor_value(sensors, 'cutting_height')
+            op_params = f"Vel: {harvester_speed} km/h, Alt: {cutting_height} mm"
+
+            # Extrai condições ambientais relevantes
+            temp = self._get_sensor_value(sensors, 'temperature')
+            humid = self._get_sensor_value(sensors, 'humidity')
+            wind = self._get_sensor_value(sensors, 'wind_speed')
+            rain = "Sim" if sensors.get('is_raining') else "Não"
+            env_cond = f"T: {temp}°C, H: {humid}%, V: {wind} km/h, Chuva: {rain}"
+
+            print(f"{i+1:2d} | {timestamp} | {op_params:<29} | {env_cond}")
+
+        # Solicita número do conjunto
+        idx = self._input_with_prompt(
+            f"\nNúmero do conjunto (1-{len(sensor_data_list)}) ou 0 para cancelar",
+            "0"
+        )
+
+        try:
+            idx = int(idx)
+            if idx == 0:
+                return
+
+            if 1 <= idx <= len(sensor_data_list):
+                data_set = sensor_data_list[idx - 1]
+
+                # Busca análise correspondente
+                matching_analysis = None
+                for analysis in analysis_data_list:
+                    if (analysis.get('analysis', {}).get('timestamp') ==
+                        data_set.get('timestamp')):
+                        matching_analysis = analysis.get('analysis', {})
+                        break
+
+                self._display_sensor_set(data_set, matching_analysis)
+            else:
+                print("\nNúmero de conjunto inválido!")
+        except ValueError:
+            print("\nEntrada inválida! Digite um número.")
+
         self._wait_keypress()
+
+    def _get_sensor_value(self, sensors, sensor_name, default="N/A"):
+        """
+        Obtém valor de um sensor com tratamento para diferentes formatos.
+
+        Args:
+            sensors (dict): Dicionário de sensores
+            sensor_name (str): Nome do sensor
+            default: Valor padrão se sensor não existir
+
+        Returns:
+            Valor do sensor formatado
+        """
+        if sensor_name not in sensors:
+            return default
+
+        reading = sensors[sensor_name]
+
+        # Verifica formato da leitura (objeto ou valor simples)
+        if isinstance(reading, dict) and 'value' in reading:
+            value = reading.get('value')
+        else:
+            value = reading
+
+        # Formata valor numérico
+        if isinstance(value, (int, float)):
+            return f"{value:.1f}"
+
+        return str(value)
+
+    def _display_sensor_set(self, data_set, analysis=None):
+        """
+        Exibe detalhes de um conjunto de dados de sensores com contexto agronômico.
+
+        Args:
+            data_set (dict): Conjunto de dados de sensores
+            analysis (dict): Análise correspondente com informações de perdas
+        """
+        timestamp = data_set.get('timestamp', 'desconhecido')
+        session_id = data_set.get('session_id', 'desconhecido')
+        sensor_data = data_set.get('data', {})
+
+        self._print_header(f"Dados Coletados em {timestamp[:19]}")
+
+        # Adiciona contexto para esta visualização
+        print("\nEsta tela apresenta os valores detalhados de todos os sensores")
+        print("para o momento selecionado, com avaliação de status em relação às")
+        print("faixas ideais para colheita mecanizada de cana-de-açúcar.\n")
+
+
+        # Exibe informações de perda se disponíveis
+        if analysis:
+            loss_estimate = analysis.get('loss_estimate', 'N/A')
+            loss_category = analysis.get('loss_category', 'N/A')
+
+            print(f"\n=== ANÁLISE DE PERDAS ===")
+            print(f"Perda estimada: {loss_estimate:.2f}%")
+            print(f"Categoria: {loss_category}")
+
+            # Exibe fatores problemáticos
+            problematic_factors = analysis.get('problematic_factors', [])
+            if problematic_factors:
+                print("\nFatores problemáticos identificados:")
+                for factor in problematic_factors:
+                    factor_name = factor.get('factor', '')
+                    value = factor.get('value', 'N/A')
+                    severity = factor.get('severity', 0) * 100
+                    direction = factor.get('direction', '')
+
+                    optimal_range = factor.get('optimal_range', [])
+                    if optimal_range and len(optimal_range) == 2:
+                        range_str = f"{optimal_range[0]}-{optimal_range[1]}"
+                    else:
+                        range_str = "N/A"
+
+                    print(f"• {factor_name}: {value} "
+                        f"({'acima' if direction == 'above' else 'abaixo'} do ideal "
+                        f"{range_str}) - Severidade: {severity:.0f}%")
+
+        # Categoriza e exibe sensores por grupo
+        print("\n=== SENSORES OPERACIONAIS ===")
+        print("Sensor               | Valor      | Unidade | Faixa Ideal  | Status")
+        print("-" * 75)
+
+        # Define faixas ideais e exibe sensores operacionais
+        ideal_ranges = {
+            'harvester_speed': (4.5, 6.5),  # km/h
+            'cutting_height': (20, 30),     # mm
+        }
+
+        for sensor_name in sorted(sensor_data.keys()):
+            if sensor_name in ['harvester_speed', 'cutting_height']:
+                reading = sensor_data[sensor_name]
+
+                # Extrai valor e unidade
+                if isinstance(reading, dict) and 'value' in reading:
+                    value = reading.get('value', 'N/A')
+                    unit = reading.get('unit', '')
+                else:
+                    value = reading
+                    unit = 'km/h' if sensor_name == 'harvester_speed' else 'mm'
+
+                # Verifica se está na faixa ideal
+                status = "NORMAL"
+                if sensor_name in ideal_ranges and isinstance(value, (int, float)):
+                    min_val, max_val = ideal_ranges[sensor_name]
+                    ideal_range = f"{min_val}-{max_val}"
+
+                    if value < min_val:
+                        status = "BAIXO"
+                    elif value > max_val:
+                        status = "ALTO"
+                else:
+                    ideal_range = "N/A"
+
+                print(f"{sensor_name[:20]:<20} | {str(value)[:10]:<10} | "
+                    f"{unit:<7} | {ideal_range:<12} | {status}")
+
+        # Exibe sensores ambientais
+        print("\n=== CONDIÇÕES AMBIENTAIS ===")
+        print("Sensor               | Valor      | Unidade | Faixa Ideal  | Status")
+        print("-" * 75)
+
+        # Define impactos e faixas para sensores ambientais
+        impact_info = {
+            'temperature': {
+                'ranges': [ (0, 15,   "LIMITANTE  - Baixa temperatura reduz eficiência"),
+                            (15, 20,  "ADEQUADO   - Temperatura aceitável"),
+                            (20, 30,  "IDEAL      - Temperatura ótima para colheita"),
+                            (30, 100, "CRÍTICO    - Temperatura alta aumenta perdas")]
+            },
+            'humidity': {
+                'ranges': [ (0, 40,   "LIMITANTE  - Umidade baixa aumenta perdas por desprendimento"),
+                            (40, 60,  "IDEAL      - Umidade ideal para colheita"),
+                            (60, 80,  "ADEQUA     - Umidade aceitável"),
+                            (80, 100, "CRÍTICO    - Umidade alta dificulta colheita")]
+            },
+            'precipitation': {
+                'ranges': [ (0, 0.1,  "IDEAL      - Ausência de chuva, condições ótimas para colheita"),
+                            (0.1, 5,  "ADEQUADO   - Precipitação leve, colheita viável"),
+                            (5, 10,   "LIMITANTE  - Precipitação moderada, aumento de perdas"),
+                            (10, 20,  "CRÍTICO    - Precipitação forte, colheita comprometida"),
+                            (20, 999, "IMPEDITIVO - Precipitação muito forte, suspender colheita")]
+            },
+            'soil_humidity': {
+                'ranges': [ (0, 15,   "CRÍTICO    - Solo muito seco prejudica colheita"),
+                            (15, 25,  "LIMITANTE  - Umidade abaixo do ideal"),
+                            (25, 45,  "IDEAL      - Umidade ideal do solo"),
+                            (45, 60,  "ADEQUADO   - Umidade alta mas aceitável"),
+                            (60, 100, "CRÍTICO    - Solo encharcado impede colheita")]
+            },
+            'wind_speed': {
+                'ranges': [ (0, 5,    "IDEAL      - Vento fraco, mínima interferência"),
+                            (5, 10,   "ADEQUADO   - Vento moderado aceitável"),
+                            (10, 15,  "LIMITANTE  - Vento forte aumenta perdas"),
+                            (15, 100, "CRÍTICO    - Vento muito forte, alta perda")]
+            }
+        }
+
+        for sensor_name in sorted(sensor_data.keys()):
+            if sensor_name in ['temperature', 'humidity', 'soil_humidity',
+                            'wind_speed', 'precipitation']:
+                reading = sensor_data[sensor_name]
+
+                # Extrai valor e unidade
+                if isinstance(reading, dict) and 'value' in reading:
+                    value = reading.get('value', 'N/A')
+                    unit = reading.get('unit', '')
+                else:
+                    value = reading
+                    unit = '°C' if sensor_name == 'temperature' else \
+                        '%' if sensor_name in ['humidity', 'soil_humidity'] else \
+                        'km/h' if sensor_name == 'wind_speed' else 'mm'
+
+
+                # Define faixas ideais para sensores ambientais
+                ideal_ranges = {
+                    'temperature': (20, 30),   # °C
+                    'humidity': (40, 60),      # %
+                    'soil_humidity': (25, 45), # %
+                    'wind_speed': (0, 10),     # km/h
+                    'precipitation': (0, 5)    # mm
+                }
+
+                # Determina faixa ideal
+                if sensor_name in ideal_ranges:
+                    min_val, max_val = ideal_ranges[sensor_name]
+                    ideal_range = f"{min_val}-{max_val}"
+                else:
+                    ideal_range = "N/A"
+
+                # Determina impacto na colheita
+                impact = "Desconhecido"
+                if sensor_name in impact_info and isinstance(value, (int, float)):
+                    for min_val, max_val, impact_text in impact_info[sensor_name]['ranges']:
+                        if min_val <= value < max_val:
+                            impact = impact_text
+                            break
+
+                print(f"{sensor_name[:20]:<20} | {str(value)[:10]:<10} | "
+                    f"{unit:<7} | {ideal_range:<12} | {impact}")
+
+        # Exibe sensores de emissão se existirem
+        emission_sensors = [s for s in sensor_data.keys()
+                        if 'emission' in s or s in ['ch4_emission', 'nh3_emission']]
+
+        if emission_sensors:
+            print("\n=== DADOS DE EMISSÃO ===")
+            print("Sensor               | Valor      | Unidade | Faixa Ideal  | Status")
+            print("-" * 75)
+
+            # Definição de faixas de referência para emissões
+            emission_ranges = {
+                'ch4_emission': (0, 10), # kg/h
+                'nh3_emission': (0, 8)   # kg/h
+            }
+
+            for sensor_name in sorted(emission_sensors):
+                reading = sensor_data[sensor_name]
+
+                # Extrai valor e unidade
+                if isinstance(reading, dict) and 'value' in reading:
+                    value = reading.get('value', 'N/A')
+                    unit = reading.get('unit', '')
+                else:
+                    value = reading
+                    unit = 'kg/h'
+
+                # Determina faixa ideal e status
+                if sensor_name in emission_ranges:
+                    min_val, max_val = emission_ranges[sensor_name]
+                    ideal_range = f"{min_val}-{max_val}"
+
+                    if isinstance(value, (int, float)):
+                        if value <= max_val:
+                            status = "ACEITÁVEL"
+                        else:
+                            status = "ELEVADO"
+                    else:
+                        status = "N/A"
+                else:
+                    ideal_range = "N/A"
+                    status = "N/A"
+
+                print(f"{sensor_name[:20]:<20} | {str(value)[:10]:<10} | "
+                    f"{unit:<7} | {ideal_range:<12} | {status}")
+
+
+    def _view_critical_parameters(self, sensor_data_list, analysis_data_list):
+        """
+        Visualiza parâmetros críticos para perdas na colheita de cana-de-açúcar.
+
+        Apresenta visão especializada que destaca os fatores mais importantes
+        que afetam perdas na colheita mecanizada.
+
+        Args:
+            sensor_data_list (list): Lista de conjuntos de dados de sensores
+            analysis_data_list (list): Lista de análises correspondentes
+        """
+        self._print_header("Parâmetros Críticos para Perdas na Colheita")
+
+        # Adiciona contexto para melhor compreensão
+        print("\nEsta tela apresenta os principais parâmetros que afetam as perdas")
+        print("na colheita mecanizada, suas faixas ideais e status atual.\n")
+
+        # Adiciona legenda para status
+        print("LEGENDA DE STATUS:")
+        print("• IDEAL: Valor dentro da faixa recomendada")
+        print("• ALTO: Valor acima do limite recomendado")
+        print("• BAIXO: Valor abaixo do limite recomendado\n")
+
+        if not sensor_data_list:
+            print("\nNenhum dado disponível para análise!")
+            self._wait_keypress()
+            return
+
+        # Define parâmetros críticos com faixas ideais
+        critical_params = {
+            'harvester_speed': {
+                'name': 'Velocidade da Colheitadeira',
+                'unit': 'km/h',
+                'ideal_range': (4.5, 6.5),
+                'impact': ('Velocidades fora da faixa ideal podem aumentar perdas. '
+                        'Velocidade muito alta causa corte irregular e desprendimento '
+                        'excessivo. Velocidade muito baixa reduz eficiência e pode '
+                        'aumentar danos à soqueira.')
+            },
+            'cutting_height': {
+                'name': 'Altura de Corte',
+                'unit': 'mm',
+                'ideal_range': (20, 30),
+                'impact': ('Altura de corte adequada é crucial para minimizar perdas. '
+                        'Corte muito alto deixa tocos com açúcar. Corte muito baixo '
+                        'aumenta impurezas minerais e prejudica rebrota.')
+            },
+            'soil_humidity': {
+                'name': 'Umidade do Solo',
+                'unit': '%',
+                'ideal_range': (25, 45),
+                'impact': ('Umidade do solo afeta trafegabilidade e qualidade de corte. '
+                        'Solo muito seco aumenta impurezas. Solo muito úmido causa '
+                        'compactação e prejudica eficiência da colheita.')
+            },
+            'temperature': {
+                'name': 'Temperatura Ambiente',
+                'unit': '°C',
+                'ideal_range': (20, 30),
+                'impact': ('Temperatura afeta desempenho de máquinas e operadores. '
+                        'Temperaturas muito altas aumentam perdas por dessecação '
+                        'e reduzem eficiência de colheita.')
+            },
+            'wind_speed': {
+                'name': 'Velocidade do Vento',
+                'unit': 'km/h',
+                'ideal_range': (0, 10),
+                'impact': ('Vento forte prejudica o direcionamento preciso da colheita '
+                        'e aumenta perdas por dispersão de material.')
+            }
+        }
+
+        # Coleta últimos valores para parâmetros críticos
+        latest_values = {}
+        trend_data = {}
+
+        # Inicializa estruturas de dados
+        for param in critical_params:
+            latest_values[param] = None
+            trend_data[param] = []
+
+        # Percorre dados de sensores (do mais recente para o mais antigo)
+        for data_set in sensor_data_list:
+            sensors = data_set.get('data', {})
+            timestamp = data_set.get('timestamp')
+
+            for param in critical_params:
+                if param in sensors:
+                    reading = sensors[param]
+
+                    # Extrai valor numérico
+                    if isinstance(reading, dict) and 'value' in reading:
+                        value = reading.get('value')
+                    else:
+                        value = reading
+
+                    # Armazena primeiro valor encontrado (mais recente)
+                    if latest_values[param] is None and isinstance(value, (int, float)):
+                        latest_values[param] = value
+
+                    # Coleta dados para análise de tendência
+                    if isinstance(value, (int, float)):
+                        trend_data[param].append((timestamp, value))
+
+        # Exibe resumo de parâmetros críticos
+        print("\nRESUMO DE PARÂMETROS CRÍTICOS PARA COLHEITA DE CANA-DE-AÇÚCAR")
+        print("=" * 75)
+        print("Parâmetro            | Valor Atual | Faixa Ideal  | Status    | Tendência")
+        print("-" * 75)
+
+        # Para cada parâmetro crítico
+        for param, details in critical_params.items():
+            current_value = latest_values[param]
+            if current_value is None:
+                status = "N/A"
+                trend = "N/A"
+                current_str = "N/A"
+            else:
+                # Verifica status conforme faixa ideal
+                min_val, max_val = details['ideal_range']
+                ideal_range = f"{min_val}-{max_val}"
+
+                if current_value < min_val:
+                    status = "BAIXO"
+                elif current_value > max_val:
+                    status = "ALTO"
+                else:
+                    status = "IDEAL"
+
+                # Formata valor atual
+                current_str = f"{current_value:.1f}"
+
+                # Calcula tendência se houver dados suficientes
+                values = [v for _, v in trend_data[param]]
+                if len(values) >= 3:
+                    first_half = values[len(values)//2:]
+                    second_half = values[:len(values)//2]
+
+                    first_avg = sum(first_half) / len(first_half)
+                    second_avg = sum(second_half) / len(second_half)
+
+                    if second_avg > first_avg * 1.05:
+                        trend = "↑ SUBINDO"
+                    elif second_avg < first_avg * 0.95:
+                        trend = "↓ DESCENDO"
+                    else:
+                        trend = "→ ESTÁVEL"
+                else:
+                    trend = "INSUFICIENTE"
+
+            # Exibe linha do parâmetro
+            print(f"{details['name'][:20]:<20} | {current_str:<11} | "
+                f"{ideal_range:<12} | {status:<9} | {trend}")
+
+        # Exibe detalhes de cada parâmetro
+        print("\n\nDETALHES DOS PARÂMETROS CRÍTICOS")
+        print("=" * 75)
+
+        for param, details in critical_params.items():
+            print(f"{details['name'].upper()} ({param})")
+            print(f"\tFaixa ideal: {details['ideal_range'][0]}-{details['ideal_range'][1]} "
+                f"{details['unit']}")
+            print(f"\tImpacto na colheita: {details['impact']}\n")
+
+            # Exibe análise de problemas relacionados a este parâmetro
+            problem_count = 0
+            for analysis in analysis_data_list:
+                factors = analysis.get('analysis', {}).get('problematic_factors', [])
+                for factor in factors:
+                    if factor.get('factor') == param:
+                        problem_count += 1
+
+            if problem_count > 0:
+                print(f"Observação: Este parâmetro foi identificado como problemático "
+                    f"em {problem_count} medições nesta sessão.")
+
+        # Exibe análise da perda total
+        if analysis_data_list:
+            print("\n\nANÁLISE DE PERDAS NA SESSÃO ATUAL")
+            print("=" * 75)
+
+            # Calcula estatísticas de perdas
+            loss_values = []
+            for analysis in analysis_data_list:
+                loss = analysis.get('analysis', {}).get('loss_estimate')
+                if isinstance(loss, (int, float)):
+                    loss_values.append(loss)
+
+            if loss_values:
+                avg_loss = sum(loss_values) / len(loss_values)
+                min_loss = min(loss_values)
+                max_loss = max(loss_values)
+
+                print(f"Perda média: {avg_loss:.2f}%")
+                print(f"Perda mínima: {min_loss:.2f}%")
+                print(f"Perda máxima: {max_loss:.2f}%")
+
+                # Classifica perda média
+                if avg_loss >= 15:
+                    print("\nStatus: PERDA ALTA - Acima do limite aceitável!")
+                    print("Recomendação: Revisar urgentemente parâmetros operacionais.")
+                elif avg_loss >= 10:
+                    print("\nStatus: PERDA MÉDIA - Acima do nível ideal.")
+                    print("Recomendação: Ajustar parâmetros destacados como problemáticos.")
+                elif avg_loss >= 5:
+                    print("\nStatus: PERDA BAIXA - Dentro de limites aceitáveis.")
+                    print("Recomendação: Monitorar parâmetros para manter ou reduzir perdas.")
+                else:
+                    print("\nStatus: PERDA MÍNIMA - Excelente desempenho.")
+                    print("Recomendação: Manter condições atuais de operação.")
+
+        self._wait_keypress()
+
+
+    def _get_sensor_category(self, sensor_name):
+        """
+        Determina a categoria de um sensor baseado em seu nome.
+
+        Args:
+            sensor_name (str): Nome do sensor
+
+        Returns:
+            str: Categoria do sensor (operational, environmental, emission, other)
+        """
+        if sensor_name in ['harvester_speed', 'cutting_height']:
+            return "operational"
+        elif sensor_name in ['temperature', 'humidity', 'soil_humidity',
+                            'wind_speed', 'precipitation', 'is_raining']:
+            return "environmental"
+        elif 'emission' in sensor_name or sensor_name in ['ch4_emission', 'nh3_emission']:
+            return "emission"
+        else:
+            return "other"
+
+    def _get_default_unit(self, sensor_name):
+        """
+        Retorna unidade padrão para um sensor.
+
+        Args:
+            sensor_name (str): Nome do sensor
+
+        Returns:
+            str: Unidade padrão do sensor
+        """
+        units = {
+            'harvester_speed': 'km/h',
+            'cutting_height': 'mm',
+            'temperature': '°C',
+            'humidity': '%',
+            'soil_humidity': '%',
+            'wind_speed': 'km/h',
+            'precipitation': 'mm',
+            'ch4_emission': 'kg/h',
+            'nh3_emission': 'kg/h'
+        }
+
+        return units.get(sensor_name, '')
+
+    def _view_sensor_history(self, sensor_data_list):
+        """
+        Visualiza histórico de um sensor específico ao longo do tempo.
+
+        Args:
+            sensor_data_list (list): Lista de conjuntos de dados de sensores
+        """
+        self._print_header("Histórico de Sensor")
+
+        # Adiciona explicação sobre a funcionalidade
+        print("\nEsta tela permite acompanhar a evolução de um sensor específico")
+        print("ao longo do tempo, facilitando a identificação de tendências e")
+        print("comportamentos que podem afetar as perdas na colheita.\n")
+
+        # Adiciona informação sobre como retornar
+        print("Dica: Para retornar à tela anterior, digite 0.\n")
+
+        # Identifica todos os sensores disponíveis
+        all_sensors = set()
+        for data in sensor_data_list:
+            sensor_data = data.get('data', {})
+            all_sensors.update(sensor_data.keys())
+
+        if not all_sensors:
+            print("\nNenhum sensor encontrado nos dados!")
+            self._wait_keypress()
+            return
+
+        # Exibe lista de sensores disponíveis
+        print("\nSensores disponíveis:")
+        for i, sensor in enumerate(sorted(all_sensors), 1):
+            print(f"{i}. {sensor}")
+
+        # Solicita escolha do sensor
+        choice = self._input_with_prompt(
+            f"\nEscolha um sensor (1-{len(all_sensors)}) ou 0 para cancelar",
+            "0"
+        )
+
+        # Verifica se a escolha é válida
+        try:
+            choice_idx = int(choice)
+            if choice_idx == 0:
+                return
+
+            # Verifica se o índice está dentro do intervalo
+            if 1 <= choice_idx <= len(all_sensors):
+                selected_sensor = sorted(all_sensors)[choice_idx - 1]
+                self._display_sensor_history(sensor_data_list, selected_sensor)
+            else:
+                print("\nNúmero de sensor inválido!")
+        except ValueError:
+            print("\nEntrada inválida! Digite um número.")
+
+        self._wait_keypress()
+
+
+    def _display_sensor_history(self, sensor_data_list, sensor_name):
+        """
+        Exibe histórico de um sensor específico com contexto agronômico.
+
+        Args:
+            sensor_data_list (list): Lista de conjuntos de dados de sensores
+            sensor_name (str): Nome do sensor para exibir histórico
+        """
+        print(f"\nHistórico do sensor: {sensor_name}")
+        print("-" * 75)
+
+        # Determina a categoria do sensor para definir o formato de exibição
+        category = self._get_sensor_category(sensor_name)
+
+        # Define cabeçalho conforme categoria do sensor
+        if category == "operational":
+            print("Timestamp                  | Valor      | Unidade | Faixa Ideal  | Status")
+            # Define faixas ideais para sensores operacionais
+            ideal_ranges = {
+                'harvester_speed': (4.5, 6.5),  # km/h
+                'cutting_height': (20, 30),     # mm
+            }
+        elif category == "environmental":
+            print("Timestamp                  | Valor      | Unidade | Faixa Ideal  | Impacto")
+            # Define faixas ideais para sensores ambientais
+            ideal_ranges = {
+                'temperature': (20, 30),       # °C
+                'humidity': (40, 60),          # %
+                'soil_humidity': (25, 45),     # %
+                'wind_speed': (0, 10),         # km/h
+                'precipitation': (0, 5)        # mm
+            }
+        elif category == "emission":
+            print("Timestamp                  | Valor      | Unidade | Faixa Ideal  | Status")
+            # Define faixas ideais para sensores de emissão
+            ideal_ranges = {
+                'ch4_emission': (0, 10),        # kg/h
+                'nh3_emission': (0, 8)          # kg/h
+            }
+        else:
+            print("Timestamp                  | Valor      | Unidade")
+            ideal_ranges = {}
+
+        print("-" * 75)
+
+        # Define mapeamentos de impacto/status conforme tipo de sensor
+        impact_info = {
+            'temperature': {
+                'ranges': [(0, 15, "LIMITANTE"), (15, 20, "ADEQUADO"),
+                        (20, 30, "IDEAL"), (30, 100, "CRÍTICO")]
+            },
+            'humidity': {
+                'ranges': [(0, 40, "LIMITANTE"), (40, 60, "IDEAL"),
+                        (60, 80, "ADEQUADO"), (80, 100, "CRÍTICO")]
+            },
+            'soil_humidity': {
+                'ranges': [(0, 15, "CRÍTICO"), (15, 25, "LIMITANTE"),
+                        (25, 45, "IDEAL"), (45, 60, "ADEQUADO"),
+                        (60, 100, "CRÍTICO")]
+            },
+            'wind_speed': {
+                'ranges': [(0, 5, "IDEAL"), (5, 10, "ADEQUADO"),
+                        (10, 15, "LIMITANTE"), (15, 100, "CRÍTICO")]
+            },
+            'precipitation': {
+                'ranges': [(0, 0.1, "IDEAL"), (0.1, 5, "ADEQUADO"),
+                        (5, 10, "LIMITANTE"), (10, 20, "CRÍTICO"),
+                        (20, 999, "IMPEDITIVO")]
+            }
+        }
+
+        # Coleta histórico do sensor
+        history = []
+        for data in sensor_data_list:
+            timestamp = data.get('timestamp', 'desconhecido')
+            sensor_data = data.get('data', {})
+
+            if sensor_name in sensor_data:
+                reading = sensor_data[sensor_name]
+
+                # Verifica formato da leitura (objeto ou valor simples)
+                if isinstance(reading, dict) and 'value' in reading:
+                    value = reading.get('value', 'N/A')
+                    unit = reading.get('unit', '')
+                    sensor_timestamp = reading.get('timestamp', timestamp)
+                else:
+                    value = reading
+                    unit = self._get_default_unit(sensor_name)
+                    sensor_timestamp = timestamp
+
+                # Determina faixa ideal
+                if sensor_name in ideal_ranges:
+                    min_val, max_val = ideal_ranges[sensor_name]
+                    ideal_range = f"{min_val}-{max_val}"
+
+                    # Determina status ou impacto
+                    if category == "operational":
+                        if isinstance(value, (int, float)):
+                            if value < min_val:
+                                status = "BAIXO"
+                            elif value > max_val:
+                                status = "ALTO"
+                            else:
+                                status = "IDEAL"
+                        else:
+                            status = "N/A"
+                    elif category == "environmental":
+                        impact = "N/A"
+                        if sensor_name in impact_info and isinstance(value, (int, float)):
+                            for min_v, max_v, impact_text in impact_info[sensor_name]['ranges']:
+                                if min_v <= value < max_v:
+                                    impact = impact_text
+                                    break
+                        status = impact
+                    elif category == "emission":
+                        if isinstance(value, (int, float)):
+                            if value <= max_val:
+                                status = "ACEITÁVEL"
+                            else:
+                                status = "ELEVADO"
+                        else:
+                            status = "N/A"
+                else:
+                    ideal_range = "N/A"
+                    status = "N/A"
+
+                # Adiciona ao histórico com todas as informações
+                history.append((sensor_timestamp, value, unit, ideal_range, status))
+
+        # Ordena histórico por timestamp
+        history.sort(reverse=True)
+
+        # Exibe histórico com formato adequado para a categoria
+        for item in history:
+            timestamp, value, unit = item[0], item[1], item[2]
+
+            if category in ["operational", "environmental", "emission"]:
+                ideal_range, status = item[3], item[4]
+                print(f"{timestamp} | {str(value)[:10]:<10} | {unit:<7} | "
+                    f"{ideal_range:<12} | {status}")
+            else:
+                print(f"{timestamp} | {str(value)[:10]:<10} | {unit}")
+
+    def _view_sensor_trends(self, sensor_data_list):
+        """
+        Visualiza tendências e estatísticas dos sensores.
+
+        Args:
+            sensor_data_list (list): Lista de conjuntos de dados de sensores
+        """
+        self._print_header("Tendências e Estatísticas")
+
+        # Adiciona explicação sobre a funcionalidade
+        print("\nESTA TELA MOSTRA:")
+        print("• Valores médios, mínimos e máximos de cada sensor")
+        print("• Tendências de comportamento dos sensores")
+        print("• Correlação com perdas na colheita\n")
+
+        # Adiciona legenda para tendências
+        print("LEGENDA DE TENDÊNCIAS:")
+        print("• SUBINDO: Valores aumentando ao longo do tempo")
+        print("• DESCENDO: Valores diminuindo ao longo do tempo")
+        print("• ESTÁVEL: Valores mantendo-se dentro de limites estreitos\n")
+
+        # Identifica todos os sensores disponíveis
+        all_sensors = set()
+        for data in sensor_data_list:
+            sensor_data = data.get('data', {})
+            all_sensors.update(sensor_data.keys())
+
+        if not all_sensors:
+            print("\nNenhum sensor encontrado nos dados!")
+            self._wait_keypress()
+            return
+
+        # Calcula estatísticas para cada sensor
+        stats = {}
+
+        for sensor_name in all_sensors:
+            values = []
+
+            for data in sensor_data_list:
+                sensor_data = data.get('data', {})
+
+                if sensor_name in sensor_data:
+                    reading = sensor_data[sensor_name]
+
+                    # Extrai valor numérico
+                    if isinstance(reading, dict) and 'value' in reading:
+                        value = reading.get('value')
+                    else:
+                        value = reading
+
+                    # Adiciona apenas valores numéricos
+                    if isinstance(value, (int, float)):
+                        values.append(value)
+
+            # Calcula estatísticas se houver valores numéricos
+            if values:
+                stats[sensor_name] = {
+                    'count': len(values),
+                    'min': min(values),
+                    'max': max(values),
+                    'avg': sum(values) / len(values),
+                    'first': values[-1] if values else None,  # Mais antigo na lista
+                    'last': values[0] if values else None,    # Mais recente na lista
+                    'trend': 'subindo' if len(values) > 1 and values[0] > values[-1] else
+                            'descendo' if len(values) > 1 and values[0] < values[-1] else
+                            'estável'
+                }
+
+        # Exibe estatísticas
+        print("\nEstatísticas dos sensores:")
+        print("-" * 70)
+        print("Sensor               | Contagem | Mín      | Máx      | Média    | "
+            "Tendência")
+        print("-" * 70)
+
+        for sensor_name in sorted(stats.keys()):
+            stat = stats[sensor_name]
+            print(f"{sensor_name[:20]:<20} | {stat['count']:<8} | "
+                f"{stat['min']:<8.2f} | {stat['max']:<8.2f} | {stat['avg']:<8.2f} | "
+                f"{stat['trend']}")
+
+        self._wait_keypress()
+
 
     def _analyze_data(self):
         """
@@ -570,6 +1669,7 @@ class CommandInterface:
         print("\nFuncionalidade em desenvolvimento.")
         self._wait_keypress()
 
+
     def _view_recommendations(self):
         """
         Visualiza recomendações geradas.
@@ -578,6 +1678,7 @@ class CommandInterface:
         self._print_header("Recomendações")
         print("\nFuncionalidade em desenvolvimento.")
         self._wait_keypress()
+
 
     def _generate_ghg_inventory(self):
         """
@@ -588,6 +1689,7 @@ class CommandInterface:
         print("\nFuncionalidade em desenvolvimento.")
         self._wait_keypress()
 
+
     def _save_to_oracle(self):
         """
         Salva dados no banco Oracle.
@@ -596,6 +1698,7 @@ class CommandInterface:
         self._print_header("Exportação para Oracle")
         print("\nFuncionalidade em desenvolvimento.")
         self._wait_keypress()
+
 
     def _end_session(self):
         """
@@ -633,6 +1736,7 @@ class CommandInterface:
 
         self._wait_keypress()
 
+
     def _exit_session(self):
         """
         Sai da sessão sem encerrar.
@@ -653,6 +1757,7 @@ class CommandInterface:
             return
 
         self.session_active = False
+
 
     def _exit_program(self):
         """

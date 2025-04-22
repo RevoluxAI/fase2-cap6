@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 2. Processador de Dados e Motor de Recomendações
-# src/processing/recommendation_engine.py
 class RecommendationEngine:
     """
     Gera recomendações para redução de perdas na colheita.

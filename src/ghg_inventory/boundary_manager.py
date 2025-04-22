@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# 6.3.1. Gerenciador de Limites GHG
-# src/ghg_inventory/boundary_manager.py
 class BoundaryManager:
     """
     Gerencia limites organizacionais e operacionais do inventário GHG.

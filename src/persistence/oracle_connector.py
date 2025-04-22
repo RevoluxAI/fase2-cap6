@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 3. Sistema de Persistência
-# src/persistence/oracle_connector.py
-import os
 import cx_Oracle
 from datetime import datetime
 

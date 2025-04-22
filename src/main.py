@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# 5. Arquivo Principal
-# src/main.py
 import os
 import sys
 import json
-from datetime import datetime
 
 # Importa componentes do sistema
 from simulation.sensor_simulator import SensorSimulator

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# 6.3.3. Gerenciador de Estoques de Carbono
-# src/ghg_inventory/carbon_stock_manager.py
 class CarbonStockManager:
     """
     Gerencia contabilização de estoques de carbono.

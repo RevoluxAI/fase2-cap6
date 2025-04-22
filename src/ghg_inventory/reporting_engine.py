@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# 6.3.4. Motor de Relatórios GHG
-# src/ghg_inventory/reporting_engine.py
 class ReportingEngine:
     """
     Gera relatórios de inventário GHG conforme protocolo.

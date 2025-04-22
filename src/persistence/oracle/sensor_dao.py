@@ -11,7 +11,7 @@ sensores ambientais, operacionais e de emissões.
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List
 
 import cx_Oracle
 

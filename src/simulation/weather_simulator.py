@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# src/simulation/weather_simulator.py
 import random
 import math
-from datetime import datetime, timedelta
 
 class WeatherSimulator:
     """

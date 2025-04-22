@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# 6.3.2. Calculador de Emissões
-# src/ghg_inventory/emissions_calculator.py
 class EmissionsCalculator:
     """
     Calcula emissões de GHG para diferentes fontes e escopos.

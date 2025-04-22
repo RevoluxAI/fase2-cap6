@@ -10,10 +10,8 @@ resiliência para ambientes de produção.
 """
 
 import os
-import time
 import logging
-from typing import Dict, Any, Optional, List, Union, Tuple
-from datetime import datetime
+from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 
 import cx_Oracle
