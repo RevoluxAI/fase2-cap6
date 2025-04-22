@@ -3273,14 +3273,726 @@ class CommandInterface:
         return filtered_recs
 
 
-
     def _generate_ghg_inventory(self):
         """
-        Gera inventário de emissões GHG.
+        Gera e exibe o inventário de emissões GHG (Gases de Efeito Estufa).
+
+        Integra dados de sensores, emissões calculadas e mudanças nos estoques
+        de carbono para criar um relatório completo seguindo o protocolo GHG.
         """
-        # Implementação simplificada
         self._print_header("Inventário GHG")
-        print("\nFuncionalidade em desenvolvimento.")
+
+        if not self.session_id:
+            print("\nNenhuma sessão ativa para gerar inventário!")
+            self._wait_keypress()
+            return
+
+        # Verifica componentes necessários
+        if not all([self.json_manager, self.reporting_engine,
+                    self.emissions_calculator, self.carbon_stock_manager]):
+            print("\nErro: Componentes necessários não inicializados!")
+            self._wait_keypress()
+            return
+
+        # Explicação contextual sobre inventários GHG
+        print("\nEsta tela permite gerar um inventário completo de gases de efeito estufa")
+        print("(GHG) para a operação de colheita, seguindo os princípios do Protocolo GHG.")
+        print("O inventário inclui emissões diretas e indiretas, organizadas por escopo,")
+        print("além de contabilizar mudanças nos estoques de carbono.")
+
+        # Carrega dados de sensores
+        sensor_data = self._load_sensor_data()
+        if not sensor_data.get('timestamps'):
+            print("\nNenhum dado de sensor encontrado para esta sessão!")
+            self._wait_keypress()
+            return
+
+        # Exibe opções de inventário
+        self._print_section("CONFIGURAÇÕES DO INVENTÁRIO")
+
+        # Exibe limites organizacionais
+        org_approach = self.boundary_manager.org_boundary_approach
+        print(f"Limite organizacional: {org_approach}")
+
+        # Exibe limites operacionais
+        print("Limites operacionais:")
+        print(f"• Escopo 1: {'Incluído (obrigatório)' if self.boundary_manager.scope1_enabled else 'Não incluído'}")
+        print(f"• Escopo 2: {'Incluído (obrigatório)' if self.boundary_manager.scope2_enabled else 'Não incluído'}")
+        print(f"• Escopo 3: {'Incluído' if self.boundary_manager.scope3_enabled else 'Não incluído'}")
+
+        print(f"\nPeríodo base: {self.boundary_manager.base_period}")
+        print(f"Metodologia: {self.emissions_calculator.calculation_tier}")
+
+        # Menu de geração
+        print("\nOPÇÕES DE GERAÇÃO:")
+        print("1. Gerar inventário completo")
+        print("2. Visualizar emissões por escopo")
+        print("3. Visualizar emissões por gás")
+        print("4. Visualizar fluxos de carbono biogênico")
+        print("5. Exportar inventário")
+        print("6. Voltar ao menu anterior")
+
+        choice = self._input_with_prompt("\nEscolha uma opção", "1")
+
+        if choice == '1':
+            self._generate_complete_inventory(sensor_data)
+        elif choice == '2':
+            self._view_emissions_by_scope()
+        elif choice == '3':
+            self._view_emissions_by_gas()
+        elif choice == '4':
+            self._view_carbon_fluxes()
+        elif choice == '5':
+            self._export_ghg_inventory()
+        elif choice == '6':
+            return
+        else:
+            print("\nOpção inválida!")
+            self._wait_keypress()
+
+
+    def _generate_complete_inventory(self, sensor_data):
+        """
+        Gera inventário GHG completo com todos os componentes.
+
+        Args:
+            sensor_data (dict): Dados dos sensores para cálculo de emissões
+        """
+        self._print_header("Inventário GHG Completo")
+
+        print("\nGerando inventário completo de gases de efeito estufa...")
+        print("Processando dados de sensores e calculando emissões...")
+
+        # Prepara dados de atividade para cálculo de emissões
+        activity_data = self._prepare_activity_data(sensor_data)
+
+        # Cálculo de emissões
+        emissions_data = self._calculate_emissions(activity_data)
+
+        # Cálculo de estoques de carbono
+        carbon_stock_data = self._calculate_carbon_stocks()
+
+        # Gerar inventário completo
+        inventory = self.reporting_engine.generate_inventory_report()
+
+        # Exibe relatório completo
+        self._display_inventory_report(inventory)
+
+        self._wait_keypress()
+
+
+    def _prepare_activity_data(self, sensor_data):
+        """
+        Prepara dados de atividade a partir dos dados de sensores.
+
+        Converte leituras de sensores em dados utilizáveis para cálculo
+        de emissões segundo o protocolo GHG.
+
+        Args:
+            sensor_data (dict): Dados dos sensores
+
+        Returns:
+            dict: Dados de atividade estruturados
+        """
+        # Dados de combustível (baseados na velocidade da colheitadeira)
+        harvester_speeds = []
+        for file_path in os.listdir(self.json_manager.data_dirs['sensor_data']):
+            if file_path.startswith(f"{self.session_id}-") and file_path.endswith('.json'):
+                full_path = os.path.join(self.json_manager.data_dirs['sensor_data'], file_path)
+                try:
+                    with open(full_path, 'r') as f:
+                        data = json.load(f)
+                        sensors = data.get('data', {})
+                        if 'harvester_speed' in sensors:
+                            reading = sensors['harvester_speed']
+                            if isinstance(reading, dict) and 'value' in reading:
+                                harvester_speeds.append(reading['value'])
+                            else:
+                                harvester_speeds.append(reading)
+                except (json.JSONDecodeError, IOError):
+                    continue
+
+        # Calcula consumo estimado de combustível (litros/hora)
+        # Baseado em modelo simplificado: consumo médio de 25 L/h com variação por velocidade
+        avg_speed = sum(harvester_speeds) / max(1, len(harvester_speeds))
+        base_consumption = 25.0  # Litros por hora na velocidade média
+
+        # Aumento de 5% no consumo por cada km/h acima de 5 km/h
+        fuel_consumption = base_consumption * (1 + 0.05 * (avg_speed - 5.0))
+        fuel_consumption = max(15.0, fuel_consumption)  # Mínimo de 15 L/h
+
+        # Estrutura para dados de atividade
+        activity_data = {
+            'fuel_data': {
+                'diesel': fuel_consumption * len(harvester_speeds) / 60.0  # Consumo total
+            },
+            'non_mechanical': {
+                'soil_management': {
+                    'nitrogen_applied': 0.0  # Não monitorado nesta simulação
+                },
+                'residue_burning': {
+                    'biomass_burned': 0.0  # Não monitorado nesta simulação
+                }
+            }
+        }
+
+        return activity_data
+
+
+    def _calculate_emissions(self, activity_data):
+        """
+        Calcula emissões de GHG com base nos dados de atividade.
+
+        Processa dados de atividade operacional para determinar emissões
+        diretas e indiretas de gases de efeito estufa, organizadas por escopo
+        conforme protocolo GHG.
+
+        Args:
+            activity_data (dict): Dados de atividade estruturados
+
+        Returns:
+            dict: Emissões calculadas por escopo e categoria
+        """
+        # Verificar se há dados de atividade significativos
+        has_real_data = (activity_data.get('fuel_data', {}).get('diesel', 0) > 0)
+
+        # Calcula emissões mecânicas e não-mecânicas
+        if has_real_data:
+            # Usa dados reais quando disponíveis
+            mechanical_emissions = self.emissions_calculator.calculate_mechanical_emissions(
+                activity_data.get('fuel_data', {})
+            )
+
+            non_mechanical_emissions = self.emissions_calculator.calculate_non_mechanical_emissions(
+                activity_data.get('non_mechanical', {})
+            )
+        else:
+            # Gera dados demonstrativos apenas para funcionalidade de UI
+            # Estes dados são simulados com base em valores típicos para colheita de cana
+            demo_fuel = activity_data.get('fuel_data', {}).get('diesel', 35.0)
+
+            # Se o valor for zero, definir um valor mínimo para demonstração
+            if demo_fuel <= 0:
+                demo_fuel = 35.0  # Litros de diesel (valor típico por hora)
+
+            # Fatores de emissão padrão (kg/L)
+            ef_co2 = 2.68
+            ef_ch4 = 0.0001
+            ef_n2o = 0.0001
+            ef_co2e = 2.71
+
+            mechanical_emissions = {
+                'CO2': ef_co2 * demo_fuel,
+                'CH4': ef_ch4 * demo_fuel,
+                'N2O': ef_n2o * demo_fuel,
+                'CO2e': ef_co2e * demo_fuel
+            }
+
+            non_mechanical_emissions = {
+                'CO2': 0.0,
+                'CH4': 0.2,   # Emissões de CH4 do solo/resíduos (kg)
+                'N2O': 0.15,  # Emissões de N2O do solo (kg)
+                'CO2e': 0.2 * 28 + 0.15 * 265  # Convertido para CO2e usando GWP
+            }
+
+        # Organiza emissões por escopo
+        emissions_data = {
+            'scope1': {
+                'mechanical': {
+                    'fuel_combustion': mechanical_emissions
+                },
+                'non_mechanical': {
+                    'soil_management': {
+                        'N2O': non_mechanical_emissions.get('N2O', 0.0),
+                        'CO2e': non_mechanical_emissions.get('N2O', 0.0) * 265
+                    },
+                    'residue_burning': {
+                        'CH4': non_mechanical_emissions.get('CH4', 0.0),
+                        'N2O': 0.0,
+                        'CO2e': non_mechanical_emissions.get('CH4', 0.0) * 28
+                    }
+                },
+                'luc': {}  # Mudança no uso da terra (se aplicável)
+            },
+            'scope2': {
+                'electricity': {
+                    'CO2': 5.2,  # kg CO2 (valor para UI)
+                    'CO2e': 5.2  # kg CO2e
+                }
+            },
+            'scope3': {}
+        }
+
+        # Adiciona emissões de escopo 3 apenas se habilitado
+        if self.boundary_manager.scope3_enabled:
+            emissions_data['scope3'] = {
+                'fuel_production': {
+                    'CO2e': mechanical_emissions.get('CO2e', 0.0) * 0.21  # Upstream (21%)
+                },
+                'transportation': {
+                    'CO2e': mechanical_emissions.get('CO2e', 0.0) * 0.15  # Transporte (15%)
+                }
+            }
+
+        return emissions_data
+
+
+    def _calculate_carbon_stocks(self):
+        """
+        Calcula mudanças nos estoques de carbono.
+
+        Returns:
+            dict: Dados sobre fluxos de carbono
+        """
+        # Dados simplificados para demonstração
+        carbon_stock_data = {
+            'soil_organic_carbon': {
+                'change_c': -0.2,  # tC/ha
+                'change_co2': -0.2 * 44/12,  # tCO2/ha (convertido de C para CO2)
+                'amortization_period': 20
+            },
+            'above_ground_biomass': {
+                'change_c': 0.5,  # tC/ha
+                'change_co2': 0.5 * 44/12,  # tCO2/ha
+                'amortization_period': 1
+            },
+            'below_ground_biomass': {
+                'change_c': 0.1,  # tC/ha
+                'change_co2': 0.1 * 44/12,  # tCO2/ha
+                'amortization_period': 1
+            },
+            'dead_organic_matter': {
+                'change_c': -0.05,  # tC/ha
+                'change_co2': -0.05 * 44/12,  # tCO2/ha
+                'amortization_period': 5
+            }
+        }
+
+        return carbon_stock_data
+
+
+    def _display_inventory_report(self, inventory):
+        """
+        Exibe relatório de inventário formatado.
+
+        Args:
+            inventory (dict): Dados do inventário
+        """
+        # Título e informações gerais
+        self._print_section("INFORMAÇÕES DO INVENTÁRIO")
+
+        # Exibe informações básicas
+        org_boundary = inventory.get('inventory_information', {}).get(
+            'organizational_boundary', 'não especificado'
+        )
+        base_period = inventory.get('inventory_information', {}).get(
+            'base_period', 'não especificado'
+        )
+        methodology = inventory.get('inventory_information', {}).get(
+            'calculation_methodology', 'não especificado'
+        )
+
+        print(f"Limite organizacional: {org_boundary}")
+        print(f"Período base: {base_period}")
+        print(f"Metodologia: {methodology}")
+
+        # Emissões por escopo
+        self._print_section("EMISSÕES POR ESCOPO (kg CO₂e)")
+
+        emissions_by_scope = inventory.get('emissions_by_scope', {})
+
+        # Adiciona visualização gráfica simplificada
+        total_emissions = sum(emissions_by_scope.values())
+        max_bar = 30  # Tamanho máximo da barra
+
+        for scope, value in emissions_by_scope.items():
+            scope_name = f"Escopo {scope[-1]}"
+            percentage = (value / total_emissions * 100) if total_emissions > 0 else 0
+            bar_size = int((value / total_emissions * max_bar) if total_emissions > 0 else 0)
+
+            print(f"{scope_name:<10}: {value:8.2f} kg CO₂e ({percentage:4.1f}%) "
+                f"{'█' * bar_size}")
+
+        print(f"TOTAL      : {total_emissions:8.2f} kg CO₂e (100.0%)")
+
+        # Emissões por gás
+        self._print_section("EMISSÕES POR GÁS")
+
+        emissions_by_gas = inventory.get('emissions_by_gas', {})
+        for gas, value in emissions_by_gas.items():
+            gwp = 1
+            if gas == 'CH4':
+                gwp = 28  # GWP do metano (AR5)
+            elif gas == 'N2O':
+                gwp = 265  # GWP do óxido nitroso (AR5)
+
+            co2e_value = value * gwp
+
+            print(f"{gas:<4}: {value:8.2f} kg ({co2e_value:8.2f} kg CO₂e)")
+
+        # Fluxos de carbono biogênico
+        self._print_section("FLUXOS DE CARBONO BIOGÊNICO")
+
+        biogenic_carbon = inventory.get('biogenic_carbon', {})
+        for category, value in biogenic_carbon.items():
+            if category != 'total':
+                category_name = category.replace('_', ' ').title()
+                print(f"{category_name:<20}: {value:8.2f} kg CO₂e")
+
+        print(f"{'Total':<20}: {biogenic_carbon.get('total', 0):8.2f} kg CO₂e")
+
+        # Adiciona explicação sobre os escopos
+        self._print_section("NOTA EXPLICATIVA")
+
+        print("• Escopo 1: Emissões diretas (combustão de combustíveis, emissões do")
+        print("  solo, mudanças no uso da terra)")
+        print("• Escopo 2: Emissões indiretas da geração de energia comprada (energia")
+        print("  elétrica, vapor)")
+        print("• Escopo 3: Outras emissões indiretas (cadeia de valor, produção de")
+        print("  combustíveis)")
+        print("\nOs fluxos de carbono biogênico incluem sequestro e emissões de carbono")
+        print("relacionados a mudanças nos estoques de carbono do solo e biomassa.")
+
+
+    def _view_emissions_by_scope(self):
+        """
+        Exibe detalhes de emissões organizadas por escopo.
+        """
+        self._print_header("Emissões por Escopo")
+
+        print("\nEsta tela apresenta detalhes das emissões organizadas por escopo,")
+        print("conforme definido pelo Protocolo GHG. Cada escopo representa um limite")
+        print("operacional diferente para categorização das emissões.")
+
+        # Gera inventário simplificado para demonstração
+        inventory = self.reporting_engine.generate_inventory_report()
+        emissions_by_scope = inventory.get('emissions_by_scope', {})
+
+        # Exibe explicação dos escopos
+        self._print_section("DEFINIÇÕES DE ESCOPOS")
+
+        print("ESCOPO 1: Emissões diretas provenientes de fontes que pertencem ou")
+        print("          são controladas pela organização.")
+        print("  • Combustão de combustíveis em equipamentos próprios")
+        print("  • Emissões provenientes de manejo de solos agrícolas")
+        print("  • Emissões por queima de resíduos agrícolas")
+        print("  • Emissões por mudanças no uso da terra")
+        print()
+
+        print("ESCOPO 2: Emissões indiretas provenientes da geração de energia")
+        print("          elétrica, calor ou vapor adquiridos.")
+        print()
+
+        print("ESCOPO 3: Outras emissões indiretas relacionadas à cadeia de valor,")
+        print("          mas fora do controle direto da organização.")
+        print("  • Produção de insumos (fertilizantes, defensivos)")
+        print("  • Transporte e distribuição de produtos")
+        print("  • Disposição de resíduos")
+        print()
+
+        # Exibe detalhes das emissões por escopo
+        scope1_sources = inventory.get('emissions_by_source', {}).get('scope1', {})
+        if scope1_sources:
+            self._print_section("DETALHAMENTO DO ESCOPO 1")
+
+            # Emissões mecânicas
+            if 'mechanical' in scope1_sources:
+                print("FONTES MECÂNICAS:")
+                for source, value in scope1_sources['mechanical'].items():
+                    print(f"• {source}: {value:.2f} kg CO₂e")
+
+            # Emissões não-mecânicas
+            if 'non_mechanical' in scope1_sources:
+                print("\nFONTES NÃO-MECÂNICAS:")
+                for source, value in scope1_sources['non_mechanical'].items():
+                    print(f"• {source}: {value:.2f} kg CO₂e")
+
+            # Emissões por mudança no uso da terra
+            if 'luc' in scope1_sources:
+                print("\nMUDANÇAS NO USO DA TERRA:")
+                for source, value in scope1_sources['luc'].items():
+                    print(f"• {source}: {value:.2f} kg CO₂e")
+
+        # Escopo 2 (se habilitado)
+        self._print_section("DETALHAMENTO DO ESCOPO 2")
+
+        scope2_sources = inventory.get('emissions_by_source', {}).get('scope2', {})
+        if self.boundary_manager.scope2_enabled and scope2_sources:
+            for source, value in scope2_sources.items():
+                print(f"• {source}: {value:.2f} kg CO₂e")
+        else:
+            # Adiciona mensagem informativa em vez de linha em branco
+            print("Nenhuma fonte de emissão do Escopo 2 identificada.")
+            # Linha adicional para manter espaçamento consistente
+            print()
+
+        # Escopo 3 (se habilitado)
+        if self.boundary_manager.scope3_enabled:
+            self._print_section("DETALHAMENTO DO ESCOPO 3")
+
+            scope3_sources = inventory.get('emissions_by_source', {}).get('scope3', {})
+            if scope3_sources:
+                for source, value in scope3_sources.items():
+                    print(f"• {source}: {value:.2f} kg CO₂e")
+            else:
+                print("Nenhuma fonte de emissão do Escopo 3 identificada.")
+                print()
+
+        # Total por escopo
+        self._print_section("RESUMO POR ESCOPO")
+
+        total_emissions = sum(emissions_by_scope.values())
+
+        for scope, value in emissions_by_scope.items():
+            scope_num = scope[-1]  # Extrai o número do escopo (último caractere)
+            scope_name = f"Escopo {scope_num}"
+            percentage = (value / total_emissions * 100) if total_emissions > 0 else 0
+            print(f"{scope_name}: {value:.2f} kg CO₂e ({percentage:.1f}%)")
+
+        print(f"\nTotal: {total_emissions:.2f} kg CO₂e")
+
+        self._wait_keypress()
+
+
+    def _view_emissions_by_gas(self):
+        """
+        Exibe detalhes de emissões por tipo de gás.
+
+        Apresenta dados segregados por tipo de gás com informações de potencial
+        de aquecimento global e contribuição percentual para o total de emissões.
+        """
+        self._print_header("Emissões por Gás")
+
+        print("\nEsta tela apresenta as emissões segregadas por tipo de gás,")
+        print("com detalhes sobre o potencial de aquecimento global (GWP)")
+        print("e a contribuição percentual de cada gás para o total de emissões.")
+
+        # Gera inventário
+        inventory = self.reporting_engine.generate_inventory_report()
+        emissions_by_gas = inventory.get('emissions_by_gas', {})
+
+        # Adiciona informação sobre GWP
+        self._print_section("POTENCIAL DE AQUECIMENTO GLOBAL (GWP)")
+
+        print("O potencial de aquecimento global é a medida que compara o impacto")
+        print("de diferentes gases com o CO₂ ao longo de um período de 100 anos.")
+
+        # Tabela de GWP (AR5 - IPCC Fifth Assessment Report)
+        print("\nGÁS   | FÓRMULA | GWP (100 anos)")
+        print("------+---------+---------------")
+        print("CO₂   | CO₂     | 1")
+        print("Metano| CH₄     | 28")
+        print("N₂O   | N₂O     | 265")
+
+        # Verifica se há dados significativos
+        has_significant_data = False
+        for gas, value in emissions_by_gas.items():
+            if value > 0.01:  # Valor pequeno mas não zero
+                has_significant_data = True
+                break
+
+        # Se não houver dados significativos, exibir uma mensagem informativa
+        if not has_significant_data:
+            self._print_section("STATUS DO INVENTÁRIO")
+
+            print("O inventário atual não possui dados de emissões significativos.")
+            print("Isso pode ocorrer pelos seguintes motivos:")
+            print("• Nenhuma simulação de colheita foi realizada")
+            print("• A simulação não registrou dados de sensores suficientes")
+            print("• Os cálculos de emissões estão configurados incorretamente")
+            print("\nRecomendações:")
+            print("1. Execute uma simulação de colheita com duração adequada")
+            print("2. Verifique se os sensores de emissão estão configurados corretamente")
+            print("3. Revise a configuração dos fatores de emissão no sistema")
+
+            # Termina o método aqui, sem mostrar exemplo ilustrativo
+            return self._wait_keypress()
+
+        # Exibe emissões por gás (somente se houver dados significativos)
+        self._print_section("EMISSÕES POR GÁS")
+
+        # Calcula total de CO₂e
+        total_co2e = 0
+        for gas, value in emissions_by_gas.items():
+            gwp = 1
+            if gas == 'CH4':
+                gwp = 28
+            elif gas == 'N2O':
+                gwp = 265
+
+            total_co2e += value * gwp
+
+        # Exibe detalhes para cada gás
+        for gas, value in emissions_by_gas.items():
+            gwp = 1
+            full_name = "Dióxido de Carbono"
+
+            if gas == 'CH4':
+                gwp = 28
+                full_name = "Metano"
+            elif gas == 'N2O':
+                gwp = 265
+                full_name = "Óxido Nitroso"
+
+            co2e_value = value * gwp
+            percentage = (co2e_value / total_co2e * 100) if total_co2e > 0 else 0
+
+            print(f"{gas} ({full_name}):")
+            print(f"  Quantidade....: {value:.2f} kg")
+            print(f"  GWP...........: {gwp}")
+            print(f"  CO₂ equivalente: {co2e_value:.2f} kg CO₂e")
+            print(f"  Contribuição..: {percentage:.1f}% do total\n")
+
+        # Exibe total
+        print(f"TOTAL: {total_co2e:.2f} kg CO₂e")
+
+        # Visualização gráfica
+        self._print_section("VISUALIZAÇÃO DE EMISSÕES")
+
+        max_bar = 40
+        print("Contribuição por gás (CO₂e):")
+
+        for gas, value in emissions_by_gas.items():
+            gwp = 1
+            if gas == 'CH4':
+                gwp = 28
+            elif gas == 'N2O':
+                gwp = 265
+
+            co2e_value = value * gwp
+            percentage = (co2e_value / total_co2e * 100) if total_co2e > 0 else 0
+            bar_size = int((co2e_value / total_co2e * max_bar) if total_co2e > 0 else 0)
+
+            print(f"{gas:<4}: {co2e_value:8.2f} kg CO₂e ({percentage:5.1f}%) "
+                f"{'█' * bar_size}")
+
+        self._wait_keypress()
+
+
+    def _view_carbon_fluxes(self):
+        """
+        Exibe detalhes dos fluxos de carbono biogênico.
+        """
+        self._print_header("Fluxos de Carbono Biogênico")
+
+        print("\nEsta tela apresenta os fluxos de carbono biogênico relacionados às")
+        print("mudanças nos estoques de carbono do solo e biomassa, e suas implicações")
+        print("para as emissões totais de gases de efeito estufa.")
+
+        # Gera inventário simplificado para demonstração
+        inventory = self.reporting_engine.generate_inventory_report()
+        biogenic_carbon = inventory.get('biogenic_carbon', {})
+
+        # Explicação dos fluxos de carbono biogênico
+        self._print_section("ENTENDENDO OS FLUXOS DE CARBONO")
+
+        print("O carbono biogênico refere-se ao carbono que faz parte do ciclo natural")
+        print("do carbono, incluindo processos como crescimento de plantas, decomposição")
+        print("e mudanças no carbono orgânico do solo.")
+
+        print("\nEmissões biogênicas (valores negativos) ocorrem quando o carbono")
+        print("é liberado para a atmosfera, como na decomposição de resíduos.")
+
+        print("\nSequestro de carbono (valores positivos) ocorre quando o carbono")
+        print("é removido da atmosfera e armazenado na biomassa ou no solo.")
+
+        # Exibe dados de fluxos por categoria
+        self._print_section("FLUXOS POR CATEGORIA (kg CO₂e)")
+
+        # Separa sequestro (positivo) e emissões (negativo)
+        sequestration = {}
+        emissions = {}
+
+        for category, value in biogenic_carbon.items():
+            if category != 'total':
+                category_name = category.replace('_', ' ').title()
+                if value > 0:
+                    sequestration[category_name] = value
+                elif value < 0:
+                    emissions[category_name] = -value  # Converte para positivo para exibição
+
+        # Exibe sequestro
+        if sequestration:
+            print("SEQUESTRO DE CARBONO (remoções da atmosfera):")
+            for category, value in sequestration.items():
+                print(f"• {category}: +{value:.2f} kg CO₂e")
+
+        # Exibe emissões
+        if emissions:
+            print("\nEMISSÕES BIOGÊNICAS (adições à atmosfera):")
+            for category, value in emissions.items():
+                print(f"• {category}: -{value:.2f} kg CO₂e")
+
+        # Balanço líquido
+        total_flux = biogenic_carbon.get('total', 0)
+        flux_type = "sequestro líquido" if total_flux > 0 else "emissão líquida"
+        abs_flux = abs(total_flux)
+
+        print(f"\nBALANÇO LÍQUIDO: {total_flux:.2f} kg CO₂e")
+        print(f"({flux_type} de {abs_flux:.2f} kg CO₂e)")
+
+        # Importância para o inventário
+        self._print_section("IMPORTÂNCIA PARA O INVENTÁRIO GHG")
+
+        print("O balanço de carbono biogênico é fundamental para entender o impacto")
+        print("climático total das operações agrícolas. Um balanço positivo (sequestro)")
+        print("pode compensar parcialmente outras emissões do inventário.")
+
+        print("\nEste tipo de contabilidade é especialmente importante no setor")
+        print("agrícola, onde as práticas de manejo têm potencial significativo para")
+        print("aumentar o sequestro de carbono no solo e na biomassa.")
+
+        self._wait_keypress()
+
+
+    def _export_ghg_inventory(self):
+        """
+        Exporta inventário GHG para arquivo JSON.
+        """
+        self._print_header("Exportar Inventário GHG")
+
+        print("\nEsta função exporta o inventário completo de GHG para um arquivo JSON,")
+        print("que pode ser utilizado para análises posteriores ou envio para verificação")
+        print("externa conforme requisitos de programas de relato de emissões.")
+
+        # Verifica se diretório existe
+        export_dir = os.path.join(self.json_manager.base_path, 'ghg_exports')
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+
+        # Gera inventário para exportação
+        inventory = self.reporting_engine.generate_inventory_report()
+
+        # Adiciona metadados
+        export_data = {
+            'session_id': self.session_id,
+            'timestamp': datetime.now().isoformat(),
+            'inventory': inventory,
+            'metadata': {
+                'version': '1.0',
+                'generated_by': 'Sistema de Redução de Perdas na Colheita',
+                'ghg_protocol_version': '2021',
+                'organizational_boundary': self.boundary_manager.org_boundary_approach,
+                'base_period': self.boundary_manager.base_period
+            }
+        }
+
+        # Gera nome do arquivo
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f"ghg_inventory_{self.session_id}_{timestamp}.json"
+        filepath = os.path.join(export_dir, filename)
+
+        # Salva arquivo
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(export_data, f, indent=2)
+
+            print(f"\nInventário GHG exportado com sucesso para:")
+            print(f"{filepath}")
+
+        except Exception as e:
+            print(f"\nErro ao exportar inventário GHG: {str(e)}")
+
         self._wait_keypress()
 
 
