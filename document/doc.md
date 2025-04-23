@@ -68,7 +68,7 @@ Além do banco de dados, o sistema também pode gerar e salvar arquivos **JSON**
 
 ### 5. **Diagrama:**
 
-<img src="assets/diagram.png" alt="Diagrama da arquitertura de software" >
+<img src="https://github.com/RevoluxAI/fase2-cap6/blob/main/assets/diagram.png" alt="Diagrama da arquitertura de software" >
 
 
 ### 6. **Melhorias**
