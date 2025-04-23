@@ -1,0 +1,11 @@
+f2c6_venv
+__pycache__
+htmlcov
+.coverage
+.pytest_cache
+data
+.oldfiles
+.vscode
+docs
+oracle.sh
+tests

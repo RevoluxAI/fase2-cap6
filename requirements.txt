@@ -1,0 +1,5 @@
+numpy
+pandas
+matplotlib
+cx_Oracle
+pytest

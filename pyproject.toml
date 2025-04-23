@@ -1,0 +1,9 @@
+# cana-loss-reduction/pyproject.toml
+# instale com:
+# $ pip install -e .
+[project]
+name = "cana-loss-reduction"
+version = "0.1.0"
+
+[tool.setuptools.packages.find]
+where = ["src"]
