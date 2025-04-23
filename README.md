@@ -25,15 +25,14 @@
 
 ## 📜 Descrição
 
-###Problema
+### Problema
 Em 2019, a atividade rural foi responsável por 72% das emissões de carbono no Brasil, uma contribuição significativa para as mudanças climáticas. O desafio está em transformar essas práticas agrícolas para que se tornem mais sustentáveis, reduzindo as emissões de gases de efeito estufa e promovendo um ambiente mais saudável. Esse cenário exige uma solução eficiente para monitorar e controlar as emissões de carbono no setor agropecuário.
 
-###Setor de Atuação
+### Setor de Atuação
 O setor em questão é o de produção agrícola. As práticas adotadas por agricultores, como uso de fertilizantes, manejo do solo e escolha de cultivos, têm um impacto direto nas emissões de carbono. Assim, o setor precisa se adaptar e adotar medidas que visem a redução dessas emissões, para mitigar os efeitos do aquecimento global e atender a padrões ambientais e de sustentabilidade.
 
-###Solução Proposta
+### Solução Proposta
 A solução desenvolvida é um sistema integrado de monitoramento e recomendação que visa otimizar as práticas agrícolas, considerando a emissão de carbono gerada por cada ação. O sistema é dividido em quatro camadas:
-
 
 ## 📁 Estrutura de pastas
 
