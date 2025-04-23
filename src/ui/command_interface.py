@@ -22,7 +22,7 @@ class CommandInterface:
         self.config = config or {}
         self.title = self.config.get(
             'title',
-            'Sistema de Redução de Perdas na Colheita Mecanizada de Cana-de-Açúcar'
+            'Sistema de Cálculo de Emissões de Gases e Recomendações de Agricultura Verde'
         )
         self.width = self.config.get('width', 80)
         self.session_active = False
@@ -4000,9 +4000,50 @@ class CommandInterface:
         """
         Salva dados no banco Oracle.
         """
-        # Implementação simplificada
         self._print_header("Exportação para Oracle")
-        print("\nFuncionalidade em desenvolvimento.")
+
+        if not self.session_id:
+            print("\nNenhuma sessão ativa para exportar!")
+            self._wait_keypress()
+            return
+
+        # Adiciona explicação contextual
+        print("\nEsta função exporta todos os dados coletados durante a sessão")
+        print("para o banco de dados Oracle, permitindo análises avançadas e")
+        print("geração de relatórios corporativos sobre perdas na colheita.")
+
+        # Confirma operação
+        confirm = self._input_with_prompt(
+            "\nTodos os dados da sessão atual serão exportados para o Oracle.\n"
+            "Confirma a exportação? (s/n)",
+            "n"
+        )
+
+        if confirm.lower() != 's':
+            print("\nOperação cancelada!")
+            self._wait_keypress()
+            return
+
+        # Cria configuração Oracle com base nas configurações existentes
+        oracle_config = {}
+        if hasattr(self, 'oracle_connector') and self.oracle_connector:
+            oracle_config = {
+                "host": self.oracle_connector.host,
+                "port": self.oracle_connector.port,
+                "service_name": self.oracle_connector.service_name,
+                "username": self.oracle_connector.username,
+                "password": self.oracle_connector.password,
+                "simulated_mode": self.oracle_connector.simulated_mode,
+                "validate_data": True
+            }
+
+        # Importa e usa o exportador Oracle
+        from persistence.oracle_exporter import OracleExporter
+        exporter = OracleExporter(oracle_config, "data")
+        result = exporter.export_session(self.session_id)
+
+        # Exibe resumo
+        print(exporter.format_export_summary(result))
         self._wait_keypress()
 
 
