@@ -40,7 +40,7 @@ Dentre os arquivos e pastas presentes na raiz do projeto, definem-se:
 
 - <b>assets</b>: aqui estão os arquivos relacionados a elementos não-estruturados deste repositório, como imagens.
 
-- <b>document</b>: aqui estão todos os documentos do projeto que as atividades poderão pedir.
+- <b>document</b>: aqui estão todos os documentos do projeto.
 
 - <b>src</b>: Todo o código fonte criado para o desenvolvimento do projeto
 
