@@ -89,7 +89,7 @@ Use o `requirements.txt`:
 **Nota:** Caso não tenha o "PIP", instale. O pacote deve constar na mirror
 com o nome: `python3-pip`
 
-### 1.1. Execução
+### Execução
 
 O projeto pode ser executado por linha de comando usando o CLI:
 
